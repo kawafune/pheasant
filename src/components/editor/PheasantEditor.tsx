@@ -17,12 +17,14 @@ type Props = {
   setStructure: (s: StructureItemData[]) => void;
   handleWriteSection: (index: number) => void;
   handleWriteAllSections: () => void;
+  handlePolishWholeArticle: () => void;
   isGenerating: boolean;
+  isPolishing: boolean;
   writingIndex: number | null;
   mainKeyword: string;
 };
 
-export const PheasantEditor: React.FC<Props> = ({ structure, setStructure, handleWriteSection, handleWriteAllSections, isGenerating, writingIndex, mainKeyword }) => {
+export const PheasantEditor: React.FC<Props> = ({ structure, setStructure, handleWriteSection, handleWriteAllSections, handlePolishWholeArticle, isGenerating, isPolishing, writingIndex, mainKeyword }) => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   // 記事全体をプレーンテキストに変換するユーティリティ
@@ -99,7 +101,9 @@ export const PheasantEditor: React.FC<Props> = ({ structure, setStructure, handl
             copyForWordPress={copyForWordPress} 
             copyAsPlainText={copyAsPlainText} 
             handleWriteAllSections={handleWriteAllSections}
+            handlePolishWholeArticle={handlePolishWholeArticle}
             isGenerating={isGenerating}
+            isPolishing={isPolishing}
             onOpenHistory={() => setIsHistoryOpen(true)}
           />
           

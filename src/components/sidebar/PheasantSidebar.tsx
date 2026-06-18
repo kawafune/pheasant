@@ -85,7 +85,7 @@ export const PheasantSidebar: React.FC<Props> = (props) => {
       {/* フッター */}
       <div className="px-5 py-3 border-t border-slate-200 bg-white/50 text-xs text-slate-400 flex items-center justify-between">
         <UserButton showName />
-        <span className="text-[10px] tracking-wider opacity-50">雉 PHEASANT</span>
+        <span className="text-[10px] tracking-wider opacity-50">PHEASANT</span>
       </div>
     </aside>
   );

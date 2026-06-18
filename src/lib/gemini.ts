@@ -57,10 +57,12 @@ export const generateSectionContent = async (sectionTitle: string, context: stri
   あなたは「${mediaType}」の専属プロライターです。
   今回は「北欧、暮らしの道具店」や「キナリノ」のような、読者の心に優しく寄り添う、体温のあるエッセイ風のトーン＆マナーで執筆してください。
   
-  # 文字数制限（絶対厳守）
-  - H2またはH3セクション1つあたりの執筆文字数は【200〜500文字】とすること。
-  - 記事全体の総文字数が【2000〜2500文字以内】に収まることを意識し、各セクションの分量を調整すること。
-  - 文字数が多すぎる冗長な文章は絶対に避けること。
+  # ★ 文字数制限（最重要・絶対厳守・違反禁止）
+  - 各セクション（H1、H2、H3）1つあたりの出力文字数は、必ず【150文字〜250文字程度】に収めること。これは絶対厳守のルールであり、250文字を超える出力は一切認めない。
+  - 記事全体の総文字数が【2000〜3000文字程度】のサクッと読めるボリュームになるよう、無駄な引き伸ばしや冗長な語り口を避けること。
+  - スマホでもスクロール疲れしないコンパクトな文字数を徹底すること。ダラダラと長い文章は書かないこと。
+  - 温かみのあるトーンを維持しつつも、スマートに要点をまとめ、1文1文を磨き上げること。
+  - 出力前に必ず自分で文字数をカウントし、250文字を超えていたら削って再調整してから出力すること。
 
   # 執筆プロトコル（絶対厳守）
   0. H1（記事タイトル＝導入文/リード文）を書く場合：
@@ -85,4 +87,46 @@ export const generateSectionContent = async (sectionTitle: string, context: stri
   const prompt = `セクション見出し: ${sectionTitle}${tagInfo}\n全体の文脈: ${context}`;
   const result = await model.generateContent([SYSTEM_PROMPT, prompt]);
   return result.response.text();
+};
+
+// --- 記事全体の推敲（重複調整）ロジック ---
+interface StructureForPolish {
+  tag: 'h1' | 'h2' | 'h3';
+  text: string;
+  content?: string;
+}
+
+export const polishWholeArticle = async (structure: StructureForPolish[], mainKeyword: string, mediaType: string): Promise<StructureForPolish[]> => {
+  if (!genAI) throw new Error("API Key not set");
+  const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+
+  const SYSTEM_PROMPT = `
+  あなたは「${mediaType}」の専属プロ編集者です。
+  入力された構成と本文全体を通読し、以下の推敲・調整を行ってください。
+
+  # 推敲ルール（絶対厳守）
+  1. [重複排除]: 各見出し間で「同じ単語の多用」や「内容の重複」を見つけたら、片方を削るか別の表現に書き換えよ。
+  2. [文脈の流れ]: 全体として自然で流れるような1つの記事として読めるよう、セクション間の接続を調整せよ。
+  3. [文字数維持]: 各セクションの文字数は【150〜250文字程度】を維持すること。推敲で大幅に増やしたり減らしたりしないこと。
+  4. [トーン維持]: 「北欧、暮らしの道具店」や「キナリノ」風の温かいエッセイ調のトーン＆マナーを崩さないこと。
+  5. [見出し保持]: 各セクションの見出し（text）は原則として変更しないこと。本文（content）の推敲に集中せよ。
+  6. [メインKW保持]: メインキーワード「${mainKeyword}」の配置は変更しないこと。
+
+  # 入出力形式
+  - 入力・出力ともに以下のJSON配列形式とする。
+  - 全セクションを含めた完全な配列を出力すること（一部だけの出力は不可）。
+  [
+    { "tag": "h1", "text": "...", "content": "..." },
+    { "tag": "h2", "text": "...", "content": "..." },
+    ...
+  ]
+  `;
+
+  const articleJson = JSON.stringify(structure, null, 2);
+  const prompt = `以下の記事全体を推敲してください。\nメインKW: ${mainKeyword}\n\n${articleJson}`;
+  const result = await model.generateContent([SYSTEM_PROMPT, prompt]);
+  const text = result.response.text();
+  const jsonMatch = text.match(/\[[\s\S]*\]/);
+  if (!jsonMatch) throw new Error("推敲結果のJSON解析に失敗");
+  return JSON.parse(jsonMatch[0]);
 };

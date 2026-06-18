@@ -40,6 +40,7 @@ function PheasantTool() {
   const [structure, setStructure] = useState<StructureItem[]>(() => loadState('kiwi_struct', []));
   const [isGenerating, setIsGenerating] = useState(false);
   const [writingIndex, setWritingIndex] = useState<number | null>(null);
+  const [isPolishing, setIsPolishing] = useState(false);
   const [cannibalAlert, setCannibalAlert] = useState<string | null>(null);
   const [existingArticles, setExistingArticles] = useState<string[]>([]);
   const [presets, setPresets] = useState<Preset[]>(() => loadState('kiwi_presets', []));
@@ -219,6 +220,33 @@ function PheasantTool() {
     toast.success('全セクションの一括執筆が完了しました！', { id: toastId });
   };
 
+  const handlePolishWholeArticle = async () => {
+    if (apiStatus !== 'ok') return toast.error('API接続を確認してください');
+    
+    // 全て執筆済みか簡易チェック
+    if (structure.some(s => !s.content)) {
+      if (!confirm('まだ執筆されていないセクションがあります。このまま推敲を実行しますか？')) return;
+    }
+
+    setIsPolishing(true);
+    const toastId = toast.loading('記事全体を推敲しています...（これには数分かかる場合があります）');
+
+    try {
+      // 既存のgemini.tsに追加された polishWholeArticle をインポートして呼び出す
+      const { polishWholeArticle } = await import('./lib/gemini');
+      const polishedStructure = await polishWholeArticle(structure, mainKeyword, mediaType);
+      
+      // 結果で上書き
+      setStructure(polishedStructure as StructureItem[]);
+      toast.success('推敲が完了しました！', { id: toastId });
+    } catch (e) {
+      console.error(e);
+      toast.error('推敲に失敗しました', { id: toastId });
+    }
+
+    setIsPolishing(false);
+  };
+
   const clearAll = () => {
     if(!confirm("リセットしますか？")) return;
     setMainKeyword(''); setSubKeywords([]); setDatabaseText(''); setStructure([]);
@@ -232,7 +260,7 @@ function PheasantTool() {
         {...{apiStatus, apiKey, setApiKey, checkApiConnection, handleFileUpload, presets, loadPreset, newPresetName, setNewPresetName, newPresetUrl, setNewPresetUrl, savePreset, mainKeyword, setMainKeyword, subKeywords, cannibalAlert, databaseText, setDatabaseText, handleGenerateStructure, isGenerating, clearAll, mediaType, setMediaType}} 
       />
       <PheasantEditor 
-        {...{structure, setStructure, handleWriteSection, handleWriteAllSections, isGenerating, writingIndex, mainKeyword}} 
+        {...{structure, setStructure, handleWriteSection, handleWriteAllSections, handlePolishWholeArticle, isGenerating, isPolishing, writingIndex, mainKeyword}} 
       />
     </div>
   );
@@ -279,14 +307,14 @@ export default function App() {
               </div>
             </div>
             <h1 className="text-3xl font-bold text-slate-800 mb-1" style={{ fontFamily: "'Noto Serif JP', serif" }}>
-              雉 <span className="text-emerald-700">Pheasant</span>
+              <span className="text-emerald-700">Pheasant</span>
             </h1>
             <p className="text-slate-400 mb-8 text-sm tracking-wider">PROFESSIONAL WRITERS ONLY</p>
             <div className="flex justify-center"><SignIn /></div>
             
             {/* 下部装飾 */}
             <div className="mt-8 pt-4 border-t border-slate-100">
-              <p className="text-[10px] text-slate-300 tracking-widest">SEO WRITING SYSTEM V4.0</p>
+              <p className="text-[10px] text-slate-300 tracking-widest">SEO WRITING SYSTEM V1.1</p>
             </div>
           </div>
         </div>

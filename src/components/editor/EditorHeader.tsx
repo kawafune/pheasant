@@ -5,11 +5,13 @@ type Props = {
   copyForWordPress: () => void;
   copyAsPlainText: () => void;
   handleWriteAllSections: () => void;
+  handlePolishWholeArticle: () => void;
   isGenerating: boolean;
+  isPolishing?: boolean;
   onOpenHistory: () => void;
 };
 
-export const EditorHeader: React.FC<Props> = ({ copyForWordPress, copyAsPlainText, handleWriteAllSections, isGenerating, onOpenHistory }) => {
+export const EditorHeader: React.FC<Props> = ({ copyForWordPress, copyAsPlainText, handleWriteAllSections, handlePolishWholeArticle, isGenerating, isPolishing, onOpenHistory }) => {
   return (
     <div className="sticky top-0 z-10 pt-2 pb-4 mb-6" style={{ background: 'linear-gradient(to bottom, #f8f6f1 80%, transparent)' }}>
       {/* 和綴じ本風ヘッダー */}
@@ -28,10 +30,17 @@ export const EditorHeader: React.FC<Props> = ({ copyForWordPress, copyAsPlainTex
           <div className="flex gap-2 flex-wrap justify-end">
             <button 
               onClick={handleWriteAllSections}
-              disabled={isGenerating}
+              disabled={isGenerating || isPolishing}
               className="bg-gradient-to-r from-emerald-500 to-emerald-600 text-white px-4 py-2 rounded-md shadow-sm hover:from-emerald-600 hover:to-emerald-700 font-bold flex items-center gap-2 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed text-sm"
             >
               <Zap size={14} /> 一括執筆
+            </button>
+            <button 
+              onClick={handlePolishWholeArticle}
+              disabled={isGenerating || isPolishing}
+              className="bg-stone-600 text-stone-200 px-3 py-2 rounded-md shadow-sm hover:bg-stone-500 font-semibold flex items-center gap-1.5 transition text-sm active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {isPolishing ? '推敲中...' : '記事推敲'}
             </button>
             <button 
               onClick={copyAsPlainText} 
