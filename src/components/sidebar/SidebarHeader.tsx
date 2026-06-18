@@ -23,9 +23,9 @@ export const SidebarHeader: React.FC<Props> = ({ apiStatus, clearAll }) => {
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-800 tracking-wide" style={{ fontFamily: "'Noto Serif JP', serif" }}>
-              雉<span className="text-emerald-700 ml-1">Pheasant</span>
+              <span className="text-emerald-700 ml-1">Pheasant</span>
             </h1>
-            <span className="text-[10px] text-slate-400 tracking-widest">SEO WRITING SYSTEM V4.0</span>
+            <span className="text-[10px] text-slate-400 tracking-widest">SEO WRITING SYSTEM V1.0</span>
           </div>
         </div>
         <button onClick={clearAll} className="text-[10px] text-slate-400 hover:text-red-500 border border-slate-200 px-2 py-1 rounded hover:border-red-300 transition-colors">
