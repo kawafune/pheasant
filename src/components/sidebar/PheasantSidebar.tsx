@@ -34,47 +34,58 @@ type Props = {
 
 export const PheasantSidebar: React.FC<Props> = (props) => {
   return (
-    <aside className={`w-96 bg-stone-50 border-r border-stone-200 p-6 overflow-y-auto flex-shrink-0 border-l-8 transition-colors duration-300 ${props.apiStatus === 'ok' ? 'border-l-emerald-600' : props.apiStatus === 'error' ? 'border-l-red-500' : 'border-l-stone-300'}`}>
-      <SidebarHeader apiStatus={props.apiStatus} clearAll={props.clearAll} />
-      
-      <ApiKeySection 
-        apiKey={props.apiKey} 
-        setApiKey={props.setApiKey} 
-        checkApiConnection={props.checkApiConnection} 
-      />
-      
-      <DataUploader 
-        handleFileUpload={props.handleFileUpload}
-        presets={props.presets}
-        loadPreset={props.loadPreset}
-        newPresetName={props.newPresetName}
-        setNewPresetName={props.setNewPresetName}
-        newPresetUrl={props.newPresetUrl}
-        setNewPresetUrl={props.setNewPresetUrl}
-        savePreset={props.savePreset}
-      />
+    <aside className="w-96 bg-stone-50 bg-tate-jima border-r border-slate-200 overflow-y-auto flex-shrink-0 flex flex-col">
+      {/* 上部：萌黄色のアクセントライン */}
+      <div className={`h-1 transition-colors duration-500 ${
+        props.apiStatus === 'ok' ? 'bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-700' 
+        : props.apiStatus === 'error' ? 'bg-red-500' 
+        : 'bg-slate-300'
+      }`}></div>
 
-      <div className="space-y-4">
-        <KeywordSettings 
-          mediaType={props.mediaType}
-          setMediaType={props.setMediaType}
-          mainKeyword={props.mainKeyword}
-          setMainKeyword={props.setMainKeyword}
-          subKeywords={props.subKeywords}
-          cannibalAlert={props.cannibalAlert}
+      <div className="p-5 flex-1">
+        <SidebarHeader apiStatus={props.apiStatus} clearAll={props.clearAll} />
+        
+        <ApiKeySection 
+          apiKey={props.apiKey} 
+          setApiKey={props.setApiKey} 
+          checkApiConnection={props.checkApiConnection} 
         />
         
-        <DatabaseInput 
-          databaseText={props.databaseText}
-          setDatabaseText={props.setDatabaseText}
-          handleGenerateStructure={props.handleGenerateStructure}
-          isGenerating={props.isGenerating}
-          mainKeyword={props.mainKeyword}
+        <DataUploader 
+          handleFileUpload={props.handleFileUpload}
+          presets={props.presets}
+          loadPreset={props.loadPreset}
+          newPresetName={props.newPresetName}
+          setNewPresetName={props.setNewPresetName}
+          newPresetUrl={props.newPresetUrl}
+          setNewPresetUrl={props.setNewPresetUrl}
+          savePreset={props.savePreset}
         />
+
+        <div className="space-y-4">
+          <KeywordSettings 
+            mediaType={props.mediaType}
+            setMediaType={props.setMediaType}
+            mainKeyword={props.mainKeyword}
+            setMainKeyword={props.setMainKeyword}
+            subKeywords={props.subKeywords}
+            cannibalAlert={props.cannibalAlert}
+          />
+          
+          <DatabaseInput 
+            databaseText={props.databaseText}
+            setDatabaseText={props.setDatabaseText}
+            handleGenerateStructure={props.handleGenerateStructure}
+            isGenerating={props.isGenerating}
+            mainKeyword={props.mainKeyword}
+          />
+        </div>
       </div>
       
-      <div className="mt-8 pt-4 border-t border-stone-200 text-xs text-slate-400 text-center">
+      {/* フッター */}
+      <div className="px-5 py-3 border-t border-slate-200 bg-white/50 text-xs text-slate-400 flex items-center justify-between">
         <UserButton showName />
+        <span className="text-[10px] tracking-wider opacity-50">雉 PHEASANT</span>
       </div>
     </aside>
   );

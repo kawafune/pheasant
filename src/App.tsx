@@ -39,6 +39,7 @@ function PheasantTool() {
   const [databaseText, setDatabaseText] = useState(() => loadState('kiwi_db', ''));
   const [structure, setStructure] = useState<StructureItem[]>(() => loadState('kiwi_struct', []));
   const [isGenerating, setIsGenerating] = useState(false);
+  const [writingIndex, setWritingIndex] = useState<number | null>(null);
   const [cannibalAlert, setCannibalAlert] = useState<string | null>(null);
   const [existingArticles, setExistingArticles] = useState<string[]>([]);
   const [presets, setPresets] = useState<Preset[]>(() => loadState('kiwi_presets', []));
@@ -157,16 +158,65 @@ function PheasantTool() {
   const handleWriteSection = async (index: number) => {
     if (apiStatus !== 'ok') return toast.error('API接続を確認してください');
     setIsGenerating(true);
+    setWritingIndex(index);
     const toastId = toast.loading('執筆中...');
     try {
       const item = structure[index];
       const content = await generateSectionContent(item.text, `メインKW: ${mainKeyword}`, mediaType, item.tag);
-      const newS = [...structure];
-      newS[index].content = content;
-      setStructure(newS);
+      setStructure(prev => {
+        const newS = [...prev];
+        newS[index] = { ...newS[index], content };
+        return newS;
+      });
       toast.success('執筆完了', { id: toastId });
     } catch (e) { toast.error('執筆エラー', { id: toastId }); }
+    setWritingIndex(null);
     setIsGenerating(false);
+  };
+
+  const handleWriteAllSections = async () => {
+    if (apiStatus !== 'ok') return toast.error('API接続を確認してください');
+
+    // まだ本文が生成されていないセクションのインデックスを収集
+    const unwrittenIndices = structure
+      .map((item, idx) => ({ item, idx }))
+      .filter(({ item }) => !item.content)
+      .map(({ idx }) => idx);
+
+    if (unwrittenIndices.length === 0) {
+      toast('すべてのセクションは執筆済みです', { icon: 'ℹ️' });
+      return;
+    }
+
+    setIsGenerating(true);
+    const toastId = toast.loading(`一括執筆開始... (0/${unwrittenIndices.length})`);
+
+    for (let i = 0; i < unwrittenIndices.length; i++) {
+      const idx = unwrittenIndices[i];
+      setWritingIndex(idx);
+      toast.loading(`一括執筆中... (${i + 1}/${unwrittenIndices.length}) 「${structure[idx].text}」`, { id: toastId });
+
+      try {
+        const item = structure[idx];
+        const content = await generateSectionContent(item.text, `メインKW: ${mainKeyword}`, mediaType, item.tag);
+        setStructure(prev => {
+          const newS = [...prev];
+          newS[idx] = { ...newS[idx], content };
+          return newS;
+        });
+      } catch (e) {
+        toast.error(`「${structure[idx].text}」の執筆に失敗`);
+      }
+
+      // 最後のセクション以外は2秒間の待機（API負荷軽減）
+      if (i < unwrittenIndices.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
+
+    setWritingIndex(null);
+    setIsGenerating(false);
+    toast.success('全セクションの一括執筆が完了しました！', { id: toastId });
   };
 
   const clearAll = () => {
@@ -176,13 +226,13 @@ function PheasantTool() {
   };
 
   return (
-    <div className="min-h-screen flex bg-stone-50 text-slate-800 font-sans">
+    <div className="min-h-screen flex bg-stone-50 text-slate-800" style={{ fontFamily: "'Noto Sans JP', sans-serif" }}>
       <Toaster position="top-right" />
       <PheasantSidebar 
         {...{apiStatus, apiKey, setApiKey, checkApiConnection, handleFileUpload, presets, loadPreset, newPresetName, setNewPresetName, newPresetUrl, setNewPresetUrl, savePreset, mainKeyword, setMainKeyword, subKeywords, cannibalAlert, databaseText, setDatabaseText, handleGenerateStructure, isGenerating, clearAll, mediaType, setMediaType}} 
       />
       <PheasantEditor 
-        {...{structure, setStructure, handleWriteSection}} 
+        {...{structure, setStructure, handleWriteSection, handleWriteAllSections, isGenerating, writingIndex, mainKeyword}} 
       />
     </div>
   );
@@ -190,16 +240,20 @@ function PheasantTool() {
 
 function ProtectedApp() {
   const { user, isLoaded } = useUser();
-  if (!isLoaded) return <div>Loading...</div>;
+  if (!isLoaded) return (
+    <div className="min-h-screen flex items-center justify-center bg-stone-50">
+      <div className="text-slate-400 text-sm">読み込み中...</div>
+    </div>
+  );
   const userEmail = user?.primaryEmailAddress?.emailAddress;
   const isAllowed = ALLOWED_EMAILS.length === 0 || (userEmail && ALLOWED_EMAILS.includes(userEmail));
   if (!isAllowed) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-stone-100 p-4">
-        <div className="bg-white p-8 rounded-lg shadow-xl text-center max-w-md">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-stone-50 bg-asanoha p-4">
+        <div className="bg-white p-8 rounded-xl shadow-watoji text-center max-w-md border border-slate-200">
           <ShieldAlert size={48} className="text-red-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-slate-800 mb-2">権限がありません</h1>
-          <p className="text-slate-600 mb-6">アカウント ({userEmail}) は許可されていません。</p>
+          <h1 className="text-2xl font-bold text-slate-800 mb-2" style={{ fontFamily: "'Noto Serif JP', serif" }}>権限がありません</h1>
+          <p className="text-slate-500 mb-6 text-sm">アカウント ({userEmail}) は許可されていません。</p>
           <UserButton />
         </div>
       </div>
@@ -210,15 +264,30 @@ function ProtectedApp() {
 
 export default function App() {
   return (
-    <div className="min-h-screen bg-stone-100">
+    <div className="min-h-screen bg-stone-50">
       <SignedIn><ProtectedApp /></SignedIn>
       <SignedOut>
-        <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-stone-100 to-stone-200">
-          <div className="bg-white p-10 rounded-2xl shadow-xl text-center max-w-md w-full border border-white/50">
-            <div className="mb-6 flex justify-center"><div className="bg-emerald-100 p-4 rounded-full"><Lock size={40} className="text-emerald-700" /></div></div>
-            <h1 className="text-4xl font-bold text-slate-800 mb-2">Pheasant Login</h1>
-            <p className="text-slate-500 mb-8">Professional Writers Only</p>
+        <div className="flex flex-col items-center justify-center min-h-screen bg-stone-50 bg-asanoha">
+          {/* ログインカード */}
+          <div className="bg-white p-10 rounded-2xl shadow-watoji text-center max-w-md w-full border border-slate-200 relative overflow-hidden">
+            {/* 上部装飾ライン */}
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-700"></div>
+            
+            <div className="mb-6 flex justify-center">
+              <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 p-4 rounded-xl shadow-lg">
+                <Lock size={36} className="text-white" />
+              </div>
+            </div>
+            <h1 className="text-3xl font-bold text-slate-800 mb-1" style={{ fontFamily: "'Noto Serif JP', serif" }}>
+              雉 <span className="text-emerald-700">Pheasant</span>
+            </h1>
+            <p className="text-slate-400 mb-8 text-sm tracking-wider">PROFESSIONAL WRITERS ONLY</p>
             <div className="flex justify-center"><SignIn /></div>
+            
+            {/* 下部装飾 */}
+            <div className="mt-8 pt-4 border-t border-slate-100">
+              <p className="text-[10px] text-slate-300 tracking-widest">SEO WRITING SYSTEM V4.0</p>
+            </div>
           </div>
         </div>
       </SignedOut>

@@ -14,11 +14,11 @@ export const KeywordSettings: React.FC<Props> = (props) => {
   return (
     <>
       <div>
-        <label className="block text-xs font-bold mb-1 text-slate-700">掲載メディア (ライター人格)</label>
+        <label className="block text-[11px] font-bold mb-1.5 text-slate-500 tracking-wider uppercase">掲載メディア</label>
         <select 
           value={props.mediaType} 
           onChange={(e) => props.setMediaType(e.target.value)}
-          className="w-full p-2 border border-stone-300 bg-white rounded font-bold text-sm text-slate-700 focus:ring-2 focus:ring-emerald-500 outline-none"
+          className="w-full p-2.5 border border-slate-200 bg-white rounded-md font-bold text-sm text-slate-700 focus:ring-1 focus:ring-emerald-500/30 focus:border-emerald-500 outline-none transition"
         >
           <option value="default">指定なし (標準ライター)</option>
           <option value="tabinoto">タビノト。 (旅/叙情的)</option>
@@ -28,20 +28,20 @@ export const KeywordSettings: React.FC<Props> = (props) => {
       </div>
 
       <div>
-        <label className="block text-xs font-bold mb-1 text-slate-700">メインキーワード</label>
+        <label className="block text-[11px] font-bold mb-1.5 text-slate-500 tracking-wider uppercase">メインキーワード</label>
         <input 
           value={props.mainKeyword} 
           onChange={(e) => props.setMainKeyword(e.target.value)}
-          className={`w-full p-2 border-2 rounded font-bold outline-none text-slate-800 transition ${props.cannibalAlert ? 'border-red-500 bg-red-50' : 'border-stone-300 focus:border-emerald-500 bg-white'}`} 
+          className={`w-full p-2.5 border-2 rounded-md font-bold outline-none text-slate-800 transition ${props.cannibalAlert ? 'border-red-400 bg-red-50/50' : 'border-slate-200 focus:border-emerald-500 bg-white'}`} 
         />
-        {props.cannibalAlert && <div className="text-red-500 text-xs mt-1 flex gap-1 font-bold animate-pulse"><AlertTriangle size={12}/> {props.cannibalAlert}</div>}
+        {props.cannibalAlert && <div className="text-red-500 text-xs mt-1.5 flex gap-1 font-bold animate-pulse"><AlertTriangle size={12}/> {props.cannibalAlert}</div>}
       </div>
 
       {props.subKeywords.length > 0 && (
-        <div className="max-h-32 overflow-y-auto border border-stone-300 rounded p-2 text-xs bg-white scrollbar-thin">
-          <p className="text-slate-400 mb-1 text-[10px]">▼ クリックでメインKWに設定</p>
+        <div className="max-h-32 overflow-y-auto border border-slate-200 rounded-md p-2 text-xs bg-white scrollbar-thin">
+          <p className="text-slate-400 mb-1 text-[10px] font-medium">▼ クリックでメインKWに設定</p>
           {props.subKeywords.map((kw, i) => (
-            <div key={i} onClick={() => props.setMainKeyword(kw)} className="cursor-pointer text-slate-700 hover:bg-emerald-50 p-1.5 truncate border-b border-stone-100 last:border-0 transition-colors">
+            <div key={i} onClick={() => props.setMainKeyword(kw)} className="cursor-pointer text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 p-1.5 truncate border-b border-slate-100 last:border-0 transition-colors rounded">
               {kw}
             </div>
           ))}
