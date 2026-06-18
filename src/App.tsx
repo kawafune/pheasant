@@ -14,7 +14,7 @@ const ALLOWED_EMAILS = [
 ];
 
 interface StructureItem {
-  tag: 'h2' | 'h3';
+  tag: 'h1' | 'h2' | 'h3';
   text: string;
   content?: string;
 }
@@ -160,7 +160,7 @@ function PheasantTool() {
     const toastId = toast.loading('執筆中...');
     try {
       const item = structure[index];
-      const content = await generateSectionContent(item.text, `メインKW: ${mainKeyword}`, mediaType);
+      const content = await generateSectionContent(item.text, `メインKW: ${mainKeyword}`, mediaType, item.tag);
       const newS = [...structure];
       newS[index].content = content;
       setStructure(newS);

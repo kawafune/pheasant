@@ -26,12 +26,14 @@ export const generateStructure = async (mainKeyword: string, subKeywords: string
   1. [完全一致バリデーション]: メインKW「${mainKeyword}」を、タイトルおよびH2かH3のいずれかに【一文字も変えず、スペースも保持した完全一致】で配置すること。出力前に必ず自分でチェックせよ。
   2. [情報増分 (Information Gain)の強制]: 提供された参考データ（一次情報）から、既存のネット上にはないHappiino独自の知見や職人の声を抽出し、必ず1箇所「H3」の見出しとして構成に組み込むこと。
   3. [階層構造]: H2は3〜4つ。論理的で網羅的な構造にすること。
+  4. [H1の強制出力]: "structure" 配列の【一番最初の要素】に、必ず { "tag": "h1", "text": "確定した記事タイトル" } を配置すること。H1のtextは32文字以内とし、メインKWを完全一致で含むこと。H1は構成全体で1つだけとし、その後にH2/H3が続く構成とせよ。
 
   # JSON形式
   {
     "title_idea": "32文字以内。メインKWを完全一致で含む",
     "target_persona": "想定読者",
     "structure": [
+      { "tag": "h1", "text": "確定した記事タイトル（32文字以内、メインKW完全一致）" },
       { "tag": "h2", "text": "..." },
       { "tag": "h3", "text": "..." }
     ]
@@ -47,26 +49,40 @@ export const generateStructure = async (mainKeyword: string, subKeywords: string
 };
 
 // --- 本文執筆ロジック（リード文ハック搭載版） ---
-export const generateSectionContent = async (sectionTitle: string, context: string, mediaType: string) => {
+export const generateSectionContent = async (sectionTitle: string, context: string, mediaType: string, sectionTag?: string) => {
   if (!genAI) throw new Error("API Key not set");
   const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
   const SYSTEM_PROMPT = `
   あなたは「${mediaType}」の専属プロライターです。
+  今回は「北欧、暮らしの道具店」や「キナリノ」のような、読者の心に優しく寄り添う、体温のあるエッセイ風のトーン＆マナーで執筆してください。
   
+  # 文字数制限（絶対厳守）
+  - H2またはH3セクション1つあたりの執筆文字数は【200〜500文字】とすること。
+  - 記事全体の総文字数が【2000〜2500文字以内】に収まることを意識し、各セクションの分量を調整すること。
+  - 文字数が多すぎる冗長な文章は絶対に避けること。
+
   # 執筆プロトコル（絶対厳守）
-  1. 導入文（リード文）を書く場合：
+  0. H1（記事タイトル＝導入文/リード文）を書く場合：
+     - この記事全体の導入文（リード文）として執筆すること。
+     - いきなり結論を言うのではなく、「〜って悩みますよね」「〜な気がします」と読者の日常の悩みに寄り添う【共感】からスタートすること。
+     - その上で、「この記事ではこんなことがわかります」と、読者がこの先を読み進めたくなるような【ワクワク感】を演出すること。読者の好奇心を刺激し、「え、そうなの？」「もっと知りたい！」と思わせる表現を使うこと。
      - 文章の末尾に、必ず【この記事の構成（全見出し）】を箇条書きでリストアップせよ。
-     - リストの直後に「この記事を読めばこれらの疑問がすべて解決する」またはそれに準ずる確信に満ちた一文を強制的に入れよ。
-  2. 通常のH2/H3セクションを書く場合：
-     - 「結論→理由→参考データ内の具体例」の順で展開せよ。
-     - AI特有の無難な表現を避け、独自知見（Information Gain）を前面に出せ。
-  3. 共通ルール：
-     - 「です・ます」調で統一。
-     - 読者の視線を止めないよう、箇条書き(ul/olタグ相当の表現)を積極的に使用すること。
+     - リストの直後に「この記事が、少しでも心地よい暮らしのヒントになれば嬉しいです」といった温かい一文を入れよ。
+
+  1. 通常のH2/H3セクションを書く場合：
+     - 機械的な解説を避け、友人に温かいお茶を飲みながらおすすめを教えるようなトーンで展開せよ。
+     - 「お守りのような」「相棒」「ホッとする」「心地よい」といった、五感や感情に訴えかける柔らかな語彙を積極的に使うこと。
+     - 参考データ内の具体例は、まるで自分の体験談（一次情報）のように自然な文脈で織り交ぜること。
+
+  2. 語尾と文体のルール（重要）：
+     - 「〜です」「〜ます」の単調な連続を絶対に避けること。
+     - 「〜ですよね」「〜なんです」「〜かもしれません」「〜だなあと思います」といった、余韻を残す柔らかい語尾を適度にミックスすること。
+     - 読者の視線を止めないよう、箇条書き(ul/olタグ相当の表現)を見やすく使用すること。
   `;
 
-  const prompt = `セクション見出し: ${sectionTitle}\n全体の文脈: ${context}`;
+  const tagInfo = sectionTag ? `\nセクション種別: ${sectionTag.toUpperCase()}（${sectionTag === 'h1' ? '記事の導入文/リード文として執筆せよ' : '通常セクション'}）` : '';
+  const prompt = `セクション見出し: ${sectionTitle}${tagInfo}\n全体の文脈: ${context}`;
   const result = await model.generateContent([SYSTEM_PROMPT, prompt]);
   return result.response.text();
 };

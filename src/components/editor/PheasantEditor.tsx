@@ -5,7 +5,7 @@ import { EditorHeader } from './EditorHeader';
 import { StructureItem as StructureItemComponent } from './StructureItem';
 
 type StructureItemData = {
-  tag: 'h2' | 'h3';
+  tag: 'h1' | 'h2' | 'h3';
   text: string;
   content?: string;
 };
@@ -37,6 +37,25 @@ export const PheasantEditor: React.FC<Props> = ({ structure, setStructure, handl
     toast.success("WordPress用HTMLをコピーしました！", { icon: '📋' });
   };
 
+  const copyAsPlainText = () => {
+    if (structure.length === 0) return;
+
+    let plainText = "";
+    structure.forEach((item, idx) => {
+      plainText += item.text + "\n";
+      if (item.content) {
+        plainText += item.content + "\n";
+      }
+      // セクション間に空行を挿入（最後のセクション以外）
+      if (idx < structure.length - 1) {
+        plainText += "\n";
+      }
+    });
+
+    navigator.clipboard.writeText(plainText);
+    toast.success("テキストをコピーしました！（改行保持）", { icon: '📝' });
+  };
+
   return (
     <main className="flex-1 p-8 overflow-y-auto bg-stone-100">
       {structure.length === 0 ? (
@@ -46,7 +65,7 @@ export const PheasantEditor: React.FC<Props> = ({ structure, setStructure, handl
         </div>
       ) : (
         <div className="max-w-4xl mx-auto space-y-6 pb-20">
-          <EditorHeader copyForWordPress={copyForWordPress} />
+          <EditorHeader copyForWordPress={copyForWordPress} copyAsPlainText={copyAsPlainText} />
           
           {structure.map((item, idx) => (
             <StructureItemComponent
