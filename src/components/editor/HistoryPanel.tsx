@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Copy, Trash2, Archive, Loader2 } from 'lucide-react';
-import { getAllArticles, deleteArticle, HistoryRecord } from '../../lib/historyDb';
+import { getAllArticles, deleteArticle } from '../../lib/historyDb';
+import type { HistoryRecord } from '../../lib/historyDb';
 import { toast } from 'react-hot-toast';
 
 type Props = {

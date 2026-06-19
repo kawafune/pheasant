@@ -163,7 +163,8 @@ function PheasantTool() {
     const toastId = toast.loading('執筆中...');
     try {
       const item = structure[index];
-      const content = await generateSectionContent(item.text, `メインKW: ${mainKeyword}`, mediaType, item.tag);
+      const isLast = index === structure.length - 1;
+      const content = await generateSectionContent(item.text, `メインKW: ${mainKeyword}`, mediaType, item.tag, isLast);
       setStructure(prev => {
         const newS = [...prev];
         newS[index] = { ...newS[index], content };
@@ -199,7 +200,8 @@ function PheasantTool() {
 
       try {
         const item = structure[idx];
-        const content = await generateSectionContent(item.text, `メインKW: ${mainKeyword}`, mediaType, item.tag);
+        const isLast = idx === structure.length - 1;
+        const content = await generateSectionContent(item.text, `メインKW: ${mainKeyword}`, mediaType, item.tag, isLast);
         setStructure(prev => {
           const newS = [...prev];
           newS[idx] = { ...newS[idx], content };

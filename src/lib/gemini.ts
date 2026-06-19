@@ -27,6 +27,7 @@ export const generateStructure = async (mainKeyword: string, subKeywords: string
   2. [情報増分 (Information Gain)の強制]: 提供された参考データ（一次情報）から、既存のネット上にはないHappiino独自の知見や職人の声を抽出し、必ず1箇所「H3」の見出しとして構成に組み込むこと。
   3. [階層構造]: H2は3〜4つ。論理的で網羅的な構造にすること。
   4. [H1の強制出力]: "structure" 配列の【一番最初の要素】に、必ず { "tag": "h1", "text": "確定した記事タイトル" } を配置すること。H1のtextは32文字以内とし、メインKWを完全一致で含むこと。H1は構成全体で1つだけとし、その後にH2/H3が続く構成とせよ。
+  5. [まとめの強制]: "structure" 配列の【一番最後の要素】には、必ず記事全体を締めくくるためのH2セクション（tag: "h2"）を追加すること。タイトルは「まとめ」や「おわりに」といった単調な言葉は絶対に避け、記事のテーマに沿ったエモーショナルで具体的なタイトル（例：「明日からの暮らしに〇〇を添えて」「心地よい〇〇のための小さな一歩」など）をAIに考えさせて設定してください。
 
   # JSON形式
   {
@@ -49,7 +50,7 @@ export const generateStructure = async (mainKeyword: string, subKeywords: string
 };
 
 // --- 本文執筆ロジック（リード文ハック搭載版） ---
-export const generateSectionContent = async (sectionTitle: string, context: string, mediaType: string, sectionTag?: string) => {
+export const generateSectionContent = async (sectionTitle: string, context: string, mediaType: string, sectionTag?: string, isLast?: boolean) => {
   if (!genAI) throw new Error("API Key not set");
   const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
@@ -58,11 +59,11 @@ export const generateSectionContent = async (sectionTitle: string, context: stri
   今回は「北欧、暮らしの道具店」や「キナリノ」のような、読者の心に優しく寄り添う、体温のあるエッセイ風のトーン＆マナーで執筆してください。
   
   # ★ 文字数制限（最重要・絶対厳守・違反禁止）
-  - 各セクション（H1、H2、H3）1つあたりの出力文字数は、必ず【150文字〜250文字程度】に収めること。これは絶対厳守のルールであり、250文字を超える出力は一切認めない。
+  ${(sectionTag === 'h1' || isLast) ? 
+  `- 今回執筆するセクションは「${sectionTag === 'h1' ? '導入(H1)' : 'まとめ(最後のH2)'}」です。文字数を【300〜500文字程度】とし、読者の心に寄り添い、感情を動かせるよう少し長めに温かく語らせること。` : 
+  `- 今回執筆するセクションは通常の「H2/H3」です。これまで通り【150〜250文字程度】のサクッと読めるコンパクトな文字数を絶対厳守すること。`}
   - 記事全体の総文字数が【2000〜3000文字程度】のサクッと読めるボリュームになるよう、無駄な引き伸ばしや冗長な語り口を避けること。
-  - スマホでもスクロール疲れしないコンパクトな文字数を徹底すること。ダラダラと長い文章は書かないこと。
-  - 温かみのあるトーンを維持しつつも、スマートに要点をまとめ、1文1文を磨き上げること。
-  - 出力前に必ず自分で文字数をカウントし、250文字を超えていたら削って再調整してから出力すること。
+  - 出力前に必ず自分で文字数をカウントし、指定範囲に収まるように削って再調整してから出力すること。
 
   # 執筆プロトコル（絶対厳守）
   0. H1（記事タイトル＝導入文/リード文）を書く場合：
@@ -83,7 +84,11 @@ export const generateSectionContent = async (sectionTitle: string, context: stri
      - 読者の視線を止めないよう、箇条書き(ul/olタグ相当の表現)を見やすく使用すること。
   `;
 
-  const tagInfo = sectionTag ? `\nセクション種別: ${sectionTag.toUpperCase()}（${sectionTag === 'h1' ? '記事の導入文/リード文として執筆せよ' : '通常セクション'}）` : '';
+  const tagInfo = sectionTag === 'h1' 
+    ? '\nセクション種別: H1（記事の導入文/リード文として執筆せよ）'
+    : isLast 
+      ? '\nセクション種別: H2（記事全体の最後を締めくくる「まとめ」セクションとして執筆せよ）'
+      : `\nセクション種別: ${sectionTag?.toUpperCase()}（通常セクション）`;
   const prompt = `セクション見出し: ${sectionTitle}${tagInfo}\n全体の文脈: ${context}`;
   const result = await model.generateContent([SYSTEM_PROMPT, prompt]);
   return result.response.text();
