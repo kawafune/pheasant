@@ -1,5 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import SEO_RULES from './seo-rules.md?raw';
+import { designToPromptText } from './articleDesign';
+import type { ArticleDesign } from './articleDesign';
 
 let genAI: GoogleGenerativeAI | null = null;
 
@@ -36,40 +38,75 @@ ${SEO_RULES}
 `;
 };
 
-// --- 構成案生成ロジック（SEO聖典・三位一体の掟 準拠版） ---
-export const generateStructure = async (mainKeyword: string, subKeywords: string[], databaseText: string, mediaType: string = 'default') => {
+// --- 構成案生成ロジック（seo-rules.md 準拠） ---
+export interface StructureResult {
+  title_idea: string;
+  target_persona: string;
+  meta_description: string;
+  key_points: string[];
+  conclusion: string;
+  structure: { tag: 'h1' | 'h2' | 'h3'; text: string; content?: string }[];
+}
+
+export const generateStructure = async (
+  mainKeyword: string,
+  subKeywords: string[],
+  databaseText: string,
+  mediaType: string = 'default',
+  design?: ArticleDesign,
+): Promise<StructureResult> => {
   if (!genAI) throw new Error("API Key not set");
   const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
   const SYSTEM_PROMPT = `
   ${buildRulesBlock(mediaType)}
-  あなたは世界最高峰のSEO戦略家であり、Pheasantシステムの頭脳です。以下の【SEO聖典の掟】を厳守し、JSON構成を作成せよ。
+  あなたは世界最高峰のSEO戦略家であり、Pheasantシステムの頭脳です。上記のルールと以下の【構成作成の掟】を厳守し、JSON構成を作成せよ。
 
-  # SEO聖典の掟（絶対厳守）
-  1. [完全一致バリデーション]: メインKW「${mainKeyword}」を、タイトルおよびH2かH3のいずれかに【一文字も変えず、スペースも保持した完全一致】で配置すること。出力前に必ず自分でチェックせよ。
-  2. [情報増分 (Information Gain)の強制]: 提供された参考データ（一次情報）から、既存のネット上にはないHappiino独自の知見や職人の声を抽出し、必ず1箇所「H3」の見出しとして構成に組み込むこと。
-  3. [階層構造]: H2は3〜4つ。論理的で網羅的な構造にすること。
-  4. [H1の強制出力]: "structure" 配列の【一番最初の要素】に、必ず { "tag": "h1", "text": "確定した記事タイトル" } を配置すること。H1のtextは32文字以内とし、メインKWを完全一致で含むこと。H1は構成全体で1つだけとし、その後にH2/H3が続く構成とせよ。
-  5. [まとめの強制]: "structure" 配列の【一番最後の要素】には、必ず記事全体を締めくくるためのH2セクション（tag: "h2"）を追加すること。タイトルは「まとめ」や「おわりに」といった単調な言葉は絶対に避け、記事のテーマに沿ったエモーショナルで具体的なタイトル（例：「明日からの暮らしに〇〇を添えて」「心地よい〇〇のための小さな一歩」など）をAIに考えさせて設定してください。
+  # 構成作成の掟（絶対厳守）
+  1. [メインKWの配置]: メインKW「${mainKeyword}」はタイトルとH2に【自然な形で】含めること。完全一致にはこだわらず、読者が違和感なく読めることを優先する。全てのH3には入れないこと。
+  2. [H1]: "structure" 配列の【一番最初の要素】に { "tag": "h1", "text": "記事タイトル" } を置く。H1は1つだけで、28〜40字前後。内容が一目で分かり、煽り・釣りは禁止。設計に「記事タイトル案」があれば優先して使う。
+  3. [H2・H3の数]: 本論のH2は2つが基本。H3は検索意図に必要な分だけ（12個前後が目安。cocci・sumigiの短い記事はもっと少なくてよい）。サブKWは主にH3に使う。同じ質問になるKWは1つの見出しにまとめる。
+  4. [見出しの形]: 見出しは短く、読者の「質問」の形を優先する。
+  5. [情報増分 (Information Gain)]: 提供された参考データ（一次情報）から、独自の知見・職人の声・現地で困ったことなどを抽出し、必ず少なくとも1つ「H3」の見出しとして構成に組み込むこと。参考データにない固有名詞・数字を見出しに入れない。
+  6. [まとめ]: "structure" 配列の【一番最後の要素】は、記事を締めくくるH2（tag: "h2"）の「まとめ」見出しとする。メインKWを自然に含めること。「まとめ」「おわりに」だけの単調な見出しは避け、記事のテーマに沿った具体的でやわらかい見出しにする（例：「${mainKeyword}を暮らしに添える、小さな一歩」）。
+  7. [結論に向ける]: 設計に「結論付けとスタンス」があれば、構成全体をその結論に向ける。なければ、参考データと検索意図から結論を一文で決めて、それに向ける。
+  8. [並び]: h1 → h2 → h3群 → h2 → h3群 → h2(まとめ) の順にする。
 
-  # JSON形式
+  # 追加で出力する項目
+  - "meta_description": 記事を自然に要約した1〜2文。メインKWは自然に1回。記事ごとに固有の文にする。
+  - "key_points": 「記事のポイント4つ」。これだけ読めば結論が分かる内容にする（文字列4つの配列）。
+  - "conclusion": この記事の結論（1文）。
+
+  # JSON形式（JSONのみを出力）
   {
-    "title_idea": "32文字以内。メインKWを完全一致で含む",
+    "title_idea": "H1と同じ記事タイトル",
     "target_persona": "想定読者",
+    "meta_description": "...",
+    "key_points": ["...", "...", "...", "..."],
+    "conclusion": "...",
     "structure": [
-      { "tag": "h1", "text": "確定した記事タイトル（32文字以内、メインKW完全一致）" },
+      { "tag": "h1", "text": "記事タイトル" },
       { "tag": "h2", "text": "..." },
       { "tag": "h3", "text": "..." }
     ]
   }
   `;
 
-  const prompt = `メインKW: ${mainKeyword}\nサブKW: ${subKeywords.join(", ")}\n参考データ: ${databaseText.substring(0, 100000)}`;
+  const designText = designToPromptText(design);
+  const prompt = `メインKW: ${mainKeyword}\nサブKW: ${subKeywords.join(", ")}\n${designText ? designText + "\n" : ""}参考データ: ${databaseText.substring(0, 100000)}`;
   const result = await model.generateContent([SYSTEM_PROMPT, prompt]);
   const text = result.response.text();
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error("JSON生成失敗");
-  return JSON.parse(jsonMatch[0]);
+  const parsed = JSON.parse(jsonMatch[0]);
+  return {
+    title_idea: parsed.title_idea ?? '',
+    target_persona: parsed.target_persona ?? '',
+    meta_description: typeof parsed.meta_description === 'string' ? parsed.meta_description : '',
+    key_points: Array.isArray(parsed.key_points) ? parsed.key_points.filter((k: unknown): k is string => typeof k === 'string') : [],
+    conclusion: typeof parsed.conclusion === 'string' ? parsed.conclusion : '',
+    structure: parsed.structure,
+  };
 };
 
 // --- 本文執筆ロジック（リード文ハック搭載版） ---

@@ -50,3 +50,24 @@ export const normalizeDesign = (raw: unknown): ArticleDesign => {
   }
   return base;
 };
+
+// 構成生成で一緒に得る記事全体の情報（seo-rules.md §2・§3）
+export interface ArticleMeta {
+  metaDescription: string; // メタディスクリプション（1〜2文）
+  keyPoints: string[]; // 記事のポイント4つ
+  conclusion: string; // この記事の結論（1文）
+}
+
+export const EMPTY_META: ArticleMeta = { metaDescription: '', keyPoints: [], conclusion: '' };
+
+export const META_STORAGE_KEY = 'pheasant_meta';
+
+export const normalizeMeta = (raw: unknown): ArticleMeta => {
+  if (!raw || typeof raw !== 'object') return { ...EMPTY_META };
+  const r = raw as Record<string, unknown>;
+  return {
+    metaDescription: typeof r.metaDescription === 'string' ? r.metaDescription : '',
+    keyPoints: Array.isArray(r.keyPoints) ? r.keyPoints.filter((k): k is string => typeof k === 'string') : [],
+    conclusion: typeof r.conclusion === 'string' ? r.conclusion : '',
+  };
+};

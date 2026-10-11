@@ -4,6 +4,8 @@ import { toast } from 'react-hot-toast';
 import { EditorHeader } from './EditorHeader';
 import { StructureItem as StructureItemComponent } from './StructureItem';
 import { HistoryPanel } from './HistoryPanel';
+import { ArticleMetaPanel } from './ArticleMetaPanel';
+import type { ArticleMeta } from '../../lib/articleDesign';
 import { saveArticle } from '../../lib/historyDb';
 
 type StructureItemData = {
@@ -22,9 +24,10 @@ type Props = {
   isPolishing: boolean;
   writingIndex: number | null;
   mainKeyword: string;
+  meta: ArticleMeta;
 };
 
-export const PheasantEditor: React.FC<Props> = ({ structure, setStructure, handleWriteSection, handleWriteAllSections, handlePolishWholeArticle, isGenerating, isPolishing, writingIndex, mainKeyword }) => {
+export const PheasantEditor: React.FC<Props> = ({ structure, setStructure, handleWriteSection, handleWriteAllSections, handlePolishWholeArticle, isGenerating, isPolishing, writingIndex, mainKeyword, meta }) => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   // 記事全体をプレーンテキストに変換するユーティリティ
@@ -107,6 +110,8 @@ export const PheasantEditor: React.FC<Props> = ({ structure, setStructure, handl
             onOpenHistory={() => setIsHistoryOpen(true)}
           />
           
+          <ArticleMetaPanel meta={meta} />
+
           {structure.map((item, idx) => (
             <StructureItemComponent
               key={idx}

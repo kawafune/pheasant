@@ -7,8 +7,8 @@ import { Toaster, toast } from 'react-hot-toast';
 import { Lock, ShieldAlert } from 'lucide-react';
 import { PheasantSidebar } from './components/sidebar/PheasantSidebar';
 import { PheasantEditor } from './components/editor/PheasantEditor';
-import { DESIGN_STORAGE_KEY, EMPTY_DESIGN, normalizeDesign } from './lib/articleDesign';
-import type { ArticleDesign } from './lib/articleDesign';
+import { DESIGN_STORAGE_KEY, EMPTY_DESIGN, EMPTY_META, META_STORAGE_KEY, normalizeDesign, normalizeMeta } from './lib/articleDesign';
+import type { ArticleDesign, ArticleMeta } from './lib/articleDesign';
 
 const ALLOWED_EMAILS = [
   "ark6122of.eins@gmail.com",
@@ -43,6 +43,7 @@ function PheasantTool() {
   const [databaseText, setDatabaseText] = useState(() => loadState('kiwi_db', ''));
   const [structure, setStructure] = useState<StructureItem[]>(() => loadState('kiwi_struct', []));
   const [design, setDesign] = useState<ArticleDesign>(() => normalizeDesign(loadState(DESIGN_STORAGE_KEY, EMPTY_DESIGN)));
+  const [meta, setMeta] = useState<ArticleMeta>(() => normalizeMeta(loadState(META_STORAGE_KEY, EMPTY_META)));
   const [isGenerating, setIsGenerating] = useState(false);
   const [writingIndex, setWritingIndex] = useState<number | null>(null);
   const [isPolishing, setIsPolishing] = useState(false);
@@ -59,6 +60,7 @@ function PheasantTool() {
   useEffect(() => localStorage.setItem('kiwi_db', JSON.stringify(databaseText)), [databaseText]);
   useEffect(() => localStorage.setItem('kiwi_struct', JSON.stringify(structure)), [structure]);
   useEffect(() => localStorage.setItem(DESIGN_STORAGE_KEY, JSON.stringify(design)), [design]);
+  useEffect(() => localStorage.setItem(META_STORAGE_KEY, JSON.stringify(meta)), [meta]);
   useEffect(() => localStorage.setItem('kiwi_presets', JSON.stringify(presets)), [presets]);
 
   useEffect(() => {
@@ -155,8 +157,9 @@ function PheasantTool() {
     if (apiStatus !== 'ok') return toast.error('API接続を確認してください');
     setIsGenerating(true);
     try {
-      const result = await generateStructure(mainKeyword, subKeywords.slice(0, 20), databaseText, mediaType);
+      const result = await generateStructure(mainKeyword, subKeywords.slice(0, 20), databaseText, mediaType, design);
       setStructure(result.structure);
+      setMeta({ metaDescription: result.meta_description, keyPoints: result.key_points, conclusion: result.conclusion });
       toast.success('構成案完成');
     } catch {
       toast.error('生成失敗');
@@ -259,7 +262,7 @@ function PheasantTool() {
 
   const clearAll = () => {
     if(!confirm("リセットしますか？")) return;
-    setMainKeyword(''); setSubKeywords([]); setDatabaseText(''); setStructure([]); setDesign(EMPTY_DESIGN);
+    setMainKeyword(''); setSubKeywords([]); setDatabaseText(''); setStructure([]); setDesign(EMPTY_DESIGN); setMeta(EMPTY_META);
     toast('リセットしました', { icon: '🧹' });
   };
 
@@ -270,7 +273,7 @@ function PheasantTool() {
         {...{apiStatus, apiKey, setApiKey, checkApiConnection, handleFileUpload, presets, loadPreset, newPresetName, setNewPresetName, newPresetUrl, setNewPresetUrl, savePreset, mainKeyword, setMainKeyword, subKeywords, cannibalAlert, databaseText, setDatabaseText, handleGenerateStructure, isGenerating, clearAll, mediaType, setMediaType, design, setDesign}} 
       />
       <PheasantEditor 
-        {...{structure, setStructure, handleWriteSection, handleWriteAllSections, handlePolishWholeArticle, isGenerating, isPolishing, writingIndex, mainKeyword}} 
+        {...{structure, setStructure, handleWriteSection, handleWriteAllSections, handlePolishWholeArticle, isGenerating, isPolishing, writingIndex, mainKeyword, meta}} 
       />
     </div>
   );
