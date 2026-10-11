@@ -5,7 +5,9 @@ import { EditorHeader } from './EditorHeader';
 import { StructureItem as StructureItemComponent } from './StructureItem';
 import { HistoryPanel } from './HistoryPanel';
 import { ArticleMetaPanel } from './ArticleMetaPanel';
+import { CheckResultPanel } from './CheckResultPanel';
 import type { ArticleMeta } from '../../lib/articleDesign';
+import type { CheckItem } from '../../lib/articleCheck';
 import { saveArticle } from '../../lib/historyDb';
 
 type StructureItemData = {
@@ -25,9 +27,13 @@ type Props = {
   writingIndex: number | null;
   mainKeyword: string;
   meta: ArticleMeta;
+  handleCheckArticle: () => void;
+  isChecking: boolean;
+  checkResults: CheckItem[] | null;
+  closeCheckResults: () => void;
 };
 
-export const PheasantEditor: React.FC<Props> = ({ structure, setStructure, handleWriteSection, handleWriteAllSections, handlePolishWholeArticle, isGenerating, isPolishing, writingIndex, mainKeyword, meta }) => {
+export const PheasantEditor: React.FC<Props> = ({ structure, setStructure, handleWriteSection, handleWriteAllSections, handlePolishWholeArticle, isGenerating, isPolishing, writingIndex, mainKeyword, meta, handleCheckArticle, isChecking, checkResults, closeCheckResults }) => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   // 記事全体をプレーンテキストに変換するユーティリティ
@@ -105,11 +111,15 @@ export const PheasantEditor: React.FC<Props> = ({ structure, setStructure, handl
             copyAsPlainText={copyAsPlainText} 
             handleWriteAllSections={handleWriteAllSections}
             handlePolishWholeArticle={handlePolishWholeArticle}
+            handleCheckArticle={handleCheckArticle}
+            isChecking={isChecking}
             isGenerating={isGenerating}
             isPolishing={isPolishing}
             onOpenHistory={() => setIsHistoryOpen(true)}
           />
           
+          {checkResults && <CheckResultPanel items={checkResults} onClose={closeCheckResults} />}
+
           <ArticleMetaPanel meta={meta} />
 
           {structure.map((item, idx) => (

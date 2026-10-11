@@ -1,17 +1,19 @@
 import React from 'react';
-import { Copy, FileDown, Zap, Archive } from 'lucide-react';
+import { Copy, FileDown, Zap, Archive, ClipboardCheck } from 'lucide-react';
 
 type Props = {
   copyForWordPress: () => void;
   copyAsPlainText: () => void;
   handleWriteAllSections: () => void;
   handlePolishWholeArticle: () => void;
+  handleCheckArticle: () => void;
+  isChecking: boolean;
   isGenerating: boolean;
   isPolishing?: boolean;
   onOpenHistory: () => void;
 };
 
-export const EditorHeader: React.FC<Props> = ({ copyForWordPress, copyAsPlainText, handleWriteAllSections, handlePolishWholeArticle, isGenerating, isPolishing, onOpenHistory }) => {
+export const EditorHeader: React.FC<Props> = ({ copyForWordPress, copyAsPlainText, handleWriteAllSections, handlePolishWholeArticle, handleCheckArticle, isChecking, isGenerating, isPolishing, onOpenHistory }) => {
   return (
     <div className="sticky top-0 z-10 pt-2 pb-4 mb-6" style={{ background: 'linear-gradient(to bottom, #f8f6f1 80%, transparent)' }}>
       {/* 和綴じ本風ヘッダー */}
@@ -41,6 +43,13 @@ export const EditorHeader: React.FC<Props> = ({ copyForWordPress, copyAsPlainTex
               className="bg-stone-600 text-stone-200 px-3 py-2 rounded-md shadow-sm hover:bg-stone-500 font-semibold flex items-center gap-1.5 transition text-sm active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {isPolishing ? '推敲中...' : '記事推敲'}
+            </button>
+            <button
+              onClick={handleCheckArticle}
+              disabled={isGenerating || isPolishing || isChecking}
+              className="bg-stone-600 text-stone-200 px-3 py-2 rounded-md shadow-sm hover:bg-stone-500 font-semibold flex items-center gap-1.5 transition text-sm active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <ClipboardCheck size={14} /> {isChecking ? '点検中...' : '点検'}
             </button>
             <button 
               onClick={copyAsPlainText} 

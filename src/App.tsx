@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { SignedIn, SignedOut, SignIn, UserButton, useUser } from "@clerk/clerk-react";
-import { initGemini, generateStructure, generateSectionContent } from './lib/gemini';
+import { initGemini, generateStructure, generateSectionContent, checkArticle } from './lib/gemini';
+import type { CheckItem } from './lib/articleCheck';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { Toaster, toast } from 'react-hot-toast';
@@ -44,6 +45,8 @@ function PheasantTool() {
   const [structure, setStructure] = useState<StructureItem[]>(() => loadState('kiwi_struct', []));
   const [design, setDesign] = useState<ArticleDesign>(() => normalizeDesign(loadState(DESIGN_STORAGE_KEY, EMPTY_DESIGN)));
   const [meta, setMeta] = useState<ArticleMeta>(() => normalizeMeta(loadState(META_STORAGE_KEY, EMPTY_META)));
+  const [checkResults, setCheckResults] = useState<CheckItem[] | null>(null);
+  const [isChecking, setIsChecking] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [writingIndex, setWritingIndex] = useState<number | null>(null);
   const [isPolishing, setIsPolishing] = useState(false);
@@ -159,6 +162,7 @@ function PheasantTool() {
     try {
       const result = await generateStructure(mainKeyword, subKeywords.slice(0, 20), databaseText, mediaType, design);
       setStructure(result.structure);
+      setCheckResults(null);
       setMeta({ metaDescription: result.meta_description, keyPoints: result.key_points, conclusion: result.conclusion });
       toast.success('構成案完成');
     } catch {
@@ -260,9 +264,25 @@ function PheasantTool() {
     setIsPolishing(false);
   };
 
+  const handleCheckArticle = async () => {
+    if (apiStatus !== 'ok') return toast.error('API接続を確認してください');
+    setIsChecking(true);
+    const toastId = toast.loading('記事を点検しています...');
+    try {
+      const items = await checkArticle(structure, mainKeyword, mediaType, design, databaseText);
+      setCheckResults(items);
+      const warnCount = items.filter(i => i.status === 'warn').length;
+      toast.success(warnCount > 0 ? `点検完了：要確認 ${warnCount}件` : '点検完了：すべてOK', { id: toastId });
+    } catch (e) {
+      console.error(e);
+      toast.error('点検に失敗しました', { id: toastId });
+    }
+    setIsChecking(false);
+  };
+
   const clearAll = () => {
     if(!confirm("リセットしますか？")) return;
-    setMainKeyword(''); setSubKeywords([]); setDatabaseText(''); setStructure([]); setDesign(EMPTY_DESIGN); setMeta(EMPTY_META);
+    setMainKeyword(''); setSubKeywords([]); setDatabaseText(''); setStructure([]); setDesign(EMPTY_DESIGN); setMeta(EMPTY_META); setCheckResults(null);
     toast('リセットしました', { icon: '🧹' });
   };
 
@@ -273,7 +293,7 @@ function PheasantTool() {
         {...{apiStatus, apiKey, setApiKey, checkApiConnection, handleFileUpload, presets, loadPreset, newPresetName, setNewPresetName, newPresetUrl, setNewPresetUrl, savePreset, mainKeyword, setMainKeyword, subKeywords, cannibalAlert, databaseText, setDatabaseText, handleGenerateStructure, isGenerating, clearAll, mediaType, setMediaType, design, setDesign}} 
       />
       <PheasantEditor 
-        {...{structure, setStructure, handleWriteSection, handleWriteAllSections, handlePolishWholeArticle, isGenerating, isPolishing, writingIndex, mainKeyword, meta}} 
+        {...{structure, setStructure, handleWriteSection, handleWriteAllSections, handlePolishWholeArticle, isGenerating, isPolishing, writingIndex, mainKeyword, meta, handleCheckArticle, isChecking, checkResults, closeCheckResults: () => setCheckResults(null)}} 
       />
     </div>
   );

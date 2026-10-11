@@ -1,6 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import SEO_RULES from './seo-rules.md?raw';
 import { designToPromptText } from './articleDesign';
+import { runCodeChecks } from './articleCheck';
+import type { CheckItem } from './articleCheck';
 import type { ArticleDesign, ArticleMeta } from './articleDesign';
 
 let genAI: GoogleGenerativeAI | null = null;
@@ -276,4 +278,82 @@ ${mediaKey === 'sumigi' ? `  9. [sumigi・表現の点検]: seo-rules.md §5 の
   const jsonMatch = text.match(/\[[\s\S]*\]/);
   if (!jsonMatch) throw new Error("推敲結果のJSON解析に失敗");
   return JSON.parse(jsonMatch[0]);
+};
+
+// --- 出力前の点検（seo-rules.md §7） ---
+// 表示だけを行い、記事は書き換えない。H1の字数とNG表現はコードで、それ以外はAIで確認する。
+const AI_CHECK_ITEMS: { id: string; label: string }[] = [
+  { id: 'kw_h1', label: 'H1にメインKWが自然に入っている' },
+  { id: 'kw_h2_h3', label: 'H2にメインKWが自然に入り、全H3に入れすぎていない' },
+  { id: 'answer_first', label: '各見出しの直後に答えがある' },
+  { id: 'no_fabrication', label: '参考データにない事実・体験を作っていない' },
+  { id: 'summary_action', label: 'まとめが「読後の変化」に沿った次の行動を一つ示している' },
+  { id: 'link_position', label: '送客先（または購入先）へのリンク位置が指定されている' },
+  { id: 'need_confirm', label: '価格・営業時間・仕様など損をしうる情報に【要確認】が付いている' },
+];
+
+export const checkArticle = async (
+  structure: StructureForPolish[],
+  mainKeyword: string,
+  mediaType: string,
+  design?: ArticleDesign,
+  databaseText: string = '',
+): Promise<CheckItem[]> => {
+  const codeItems = runCodeChecks(structure);
+  if (!genAI) throw new Error("API Key not set");
+  const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+
+  const SYSTEM_PROMPT = `
+  ${buildRulesBlock(mediaType)}
+  あなたは厳格な校閲者です。渡された記事が seo-rules.md の §7「出力の自己点検」を満たしているか、項目ごとに判定してください。記事を書き換えてはいけません。判定と理由だけを返します。
+
+  # 点検項目
+${AI_CHECK_ITEMS.map((it) => `  - ${it.id}: ${it.label}`).join('\n')}
+
+  # 判定の基準
+  - "ok": 問題が見当たらない。
+  - "warn": 要確認。理由に、該当する見出し名と何が問題かを具体的に書く（1〜2文）。
+  - 参考データが空の場合、no_fabrication は「参考データがないため判定できない」を理由に "warn" とし、記事内の怪しい固有名詞・数字・体験談があれば挙げる。
+  - 完全一致は求めない。キーワードが自然に含まれていれば "ok"。
+  - メインKWはH1・H2に自然に入っていればよく、全H3に入っていないことが望ましい。
+  - link_position は、媒体ごとの送客先ルール（§6）に照らし、本文中に【リンク：送客先】などのリンク位置が示されているかを見る。
+  - 迷ったら "warn"。
+
+  # 出力形式（JSON配列のみ。全項目を含める）
+  [
+    { "id": "kw_h1", "status": "ok", "reason": "..." }
+  ]
+  `;
+
+  const designText = designToPromptText(design);
+  const prompt = [
+    `メインKW: ${mainKeyword}`,
+    designText,
+    `# 参考データ（一次情報）\n${databaseText.substring(0, 100000) || '（参考データなし）'}`,
+    `# 記事\n${JSON.stringify(structure, null, 2)}`,
+  ].filter(Boolean).join('\n\n');
+
+  try {
+    const result = await model.generateContent([SYSTEM_PROMPT, prompt]);
+    const jsonMatch = result.response.text().match(/\[[\s\S]*\]/);
+    if (!jsonMatch) throw new Error("点検結果のJSON解析に失敗");
+    const parsed: { id?: string; status?: string; reason?: string }[] = JSON.parse(jsonMatch[0]);
+    const aiItems: CheckItem[] = AI_CHECK_ITEMS.map((it) => {
+      const found = parsed.find((p) => p.id === it.id);
+      return {
+        id: it.id,
+        label: it.label,
+        status: found?.status === 'ok' ? 'ok' : 'warn',
+        reason: found?.reason ?? 'AIの判定結果が返りませんでした',
+        source: 'ai',
+      };
+    });
+    return [...codeItems, ...aiItems];
+  } catch (e) {
+    console.error(e);
+    return [
+      ...codeItems,
+      { id: 'ai_failed', label: 'AIによる点検', status: 'warn', reason: 'AI点検に失敗しました。もう一度お試しください', source: 'ai' },
+    ];
+  }
 };
