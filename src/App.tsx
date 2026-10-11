@@ -151,7 +151,7 @@ function PheasantTool() {
     if (apiStatus !== 'ok') return toast.error('API接続を確認してください');
     setIsGenerating(true);
     try {
-      const result = await generateStructure(mainKeyword, subKeywords.slice(0, 20), databaseText);
+      const result = await generateStructure(mainKeyword, subKeywords.slice(0, 20), databaseText, mediaType);
       setStructure(result.structure);
       toast.success('構成案完成');
     } catch {

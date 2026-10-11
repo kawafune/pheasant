@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import SEO_RULES from './seo-rules.md?raw';
 
 let genAI: GoogleGenerativeAI | null = null;
 
@@ -14,12 +15,34 @@ export const initGemini = async (apiKey: string) => {
   }
 };
 
+// --- SEOルール（src/lib/seo-rules.md が正本）の読み込み ---
+// 画面上の mediaType 値 → seo-rules.md §6 の媒体名
+const MEDIA_RULE_KEY: Record<string, string> = {
+  default: 'default',
+  tabinoto: 'tabinoto',
+  sumigi: 'sumigi',
+  cocci3: 'cocci',
+};
+
+// 3つの関数（構成・本文・推敲）のシステムプロンプト先頭に入れるルールブロック
+const buildRulesBlock = (mediaType: string): string => {
+  const mediaKey = MEDIA_RULE_KEY[mediaType] ?? 'default';
+  return `# この記事作成で必ず守るルール（SEO_Master_Logic 抜粋）
+以下は全文です。この記事の媒体は「${mediaKey}」です。§6 のうち「${mediaKey}」の設定を適用してください。
+
+${SEO_RULES}
+
+# ここまでが必ず守るルール
+`;
+};
+
 // --- 構成案生成ロジック（SEO聖典・三位一体の掟 準拠版） ---
-export const generateStructure = async (mainKeyword: string, subKeywords: string[], databaseText: string) => {
+export const generateStructure = async (mainKeyword: string, subKeywords: string[], databaseText: string, mediaType: string = 'default') => {
   if (!genAI) throw new Error("API Key not set");
   const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
   const SYSTEM_PROMPT = `
+  ${buildRulesBlock(mediaType)}
   あなたは世界最高峰のSEO戦略家であり、Pheasantシステムの頭脳です。以下の【SEO聖典の掟】を厳守し、JSON構成を作成せよ。
 
   # SEO聖典の掟（絶対厳守）
@@ -55,6 +78,7 @@ export const generateSectionContent = async (sectionTitle: string, context: stri
   const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
   const SYSTEM_PROMPT = `
+  ${buildRulesBlock(mediaType)}
   あなたは「${mediaType}」の専属プロライターです。
   今回は「北欧、暮らしの道具店」や「キナリノ」のような、読者の心に優しく寄り添う、体温のあるエッセイ風のトーン＆マナーで執筆してください。
   
@@ -106,6 +130,7 @@ export const polishWholeArticle = async (structure: StructureForPolish[], mainKe
   const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
   const SYSTEM_PROMPT = `
+  ${buildRulesBlock(mediaType)}
   あなたは「${mediaType}」の専属プロ編集者です。
   入力された構成と本文全体を通読し、以下の推敲・調整を行ってください。
 
