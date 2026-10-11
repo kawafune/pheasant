@@ -175,7 +175,7 @@ function PheasantTool() {
     try {
       const item = structure[index];
       const isLast = index === structure.length - 1;
-      const content = await generateSectionContent(item.text, `メインKW: ${mainKeyword}`, mediaType, item.tag, isLast);
+      const content = await generateSectionContent({ sectionTitle: item.text, mainKeyword, mediaType, sectionTag: item.tag, isLast, index, structure, databaseText, design, meta });
       setStructure(prev => {
         const newS = [...prev];
         newS[index] = { ...newS[index], content };
@@ -212,7 +212,7 @@ function PheasantTool() {
       try {
         const item = structure[idx];
         const isLast = idx === structure.length - 1;
-        const content = await generateSectionContent(item.text, `メインKW: ${mainKeyword}`, mediaType, item.tag, isLast);
+        const content = await generateSectionContent({ sectionTitle: item.text, mainKeyword, mediaType, sectionTag: item.tag, isLast, index: idx, structure, databaseText, design, meta });
         setStructure(prev => {
           const newS = [...prev];
           newS[idx] = { ...newS[idx], content };

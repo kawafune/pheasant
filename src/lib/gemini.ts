@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import SEO_RULES from './seo-rules.md?raw';
 import { designToPromptText } from './articleDesign';
-import type { ArticleDesign } from './articleDesign';
+import type { ArticleDesign, ArticleMeta } from './articleDesign';
 
 let genAI: GoogleGenerativeAI | null = null;
 
@@ -109,48 +109,125 @@ export const generateStructure = async (
   };
 };
 
-// --- 本文執筆ロジック（リード文ハック搭載版） ---
-export const generateSectionContent = async (sectionTitle: string, context: string, mediaType: string, sectionTag?: string, isLast?: boolean) => {
+// --- 本文執筆ロジック（seo-rules.md 準拠） ---
+export interface SectionParams {
+  sectionTitle: string;
+  mainKeyword: string;
+  mediaType: string;
+  sectionTag: 'h1' | 'h2' | 'h3';
+  isLast: boolean;
+  index: number;
+  structure: { tag: 'h1' | 'h2' | 'h3'; text: string }[]; // 構成全体（見出し一覧）
+  databaseText: string; // 参考データ（一次情報）
+  design?: ArticleDesign;
+  meta?: ArticleMeta;
+}
+
+export const generateSectionContent = async (params: SectionParams) => {
+  const { sectionTitle, mainKeyword, mediaType, sectionTag, isLast, index, structure, databaseText, design, meta } = params;
   if (!genAI) throw new Error("API Key not set");
   const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+
+  const mediaKey = MEDIA_RULE_KEY[mediaType] ?? 'default';
+  const isIntro = sectionTag === 'h1';
+  const firstH2Index = structure.findIndex((it) => it.tag === 'h2');
+  const isFirstH2 = sectionTag === 'h2' && index === firstH2Index && !isLast;
+  const hasCashPoint = !!design?.cashPoint?.trim();
+
+  // 字数：固定の上限は置かず、媒体ごとの目安だけ示す
+  const lengthRule = isIntro
+    ? '- 導入文：文章部分は【300〜500文字程度】。ポイントと見出しリストは別に付ける。'
+    : isLast
+      ? '- まとめ：【300〜500文字程度】。内容が必要な場合のみ増やしてよい。'
+      : mediaKey === 'tabinoto'
+        ? '- このセクション：内容に応じて【300〜800文字程度】。解説記事は総字数1万字前後まで可。'
+        : '- このセクション：【200〜400文字程度】を目安に、必要な分だけ。水増し・冗長な語りはしない。';
+
+  // 送客先リンクの置き場（seo-rules.md §6）
+  const linkRules: string[] = [];
+  if (mediaKey === 'sumigi') {
+    if (isIntro) linkRules.push('- 結論を示した直後に、押し売りにならない形で【リンク：送客先（自社ショップの該当商品、または開発ストーリー）】を1つ置く。');
+    if (isFirstH2) linkRules.push('- 最初のH2の結論部分に、押し売りにならない形で【リンク：送客先】を1つ置く。');
+    if (isLast) linkRules.push('- まとめの最後に【リンク：送客先】を置く。');
+  } else if (isLast) {
+    if (mediaKey === 'tabinoto') linkRules.push('- 記事の終わりに必ず送客先（取材先の公式サイト・予約・通販・地図）を【リンク：送客先】として置く。');
+    else if (mediaKey === 'cocci') linkRules.push('- 最後に来店・予約・空間レンタルの問い合わせへの送客先を【リンク：送客先】として置く。');
+    else if (hasCashPoint) linkRules.push('- 最後に【リンク：送客先】を置く。');
+  }
+  const linkBlock = linkRules.length > 0
+    ? `# 送客先リンクの置き場\n${linkRules.join('\n')}\n- 本文中には「【リンク：送客先】」のように置き場だけを書く。URLは作らない。${hasCashPoint ? '送客先は設計の「キャッシュポイント／送客先」を指す。' : '設計に送客先の指定がない場合は、【要確認：送客先未指定】と添える。'}\n`
+    : '';
+
+  const sectionRule = isIntro
+    ? `0. 今回は導入文（リード文）を書く。次の順で構成する：
+     ① 読者の日常の悩みに寄り添う【共感】（「〜って悩みますよね」「〜な気がします」など）
+     ② 結論・方向性を早めに示す${meta?.conclusion ? `（結論：${meta.conclusion}）` : ''}
+     ③ この記事で分かること（メインKWと主要な見出し用KWを自然に含める。長くしすぎない）
+     ④ 【記事のポイント】を箇条書き4つ${meta && meta.keyPoints.length > 0 ? `。次の4つをそのまま、または読みやすく整えて使う：\n${meta.keyPoints.map((k) => `        ・${k}`).join('\n')}` : '。構成と参考データから4つ作る'}
+     ⑤ 【この記事の構成（全見出し）】を箇条書きでリストアップ
+     ⑥ リストの直後に「この記事が、少しでも心地よい暮らしのヒントになれば嬉しいです」といった温かい一文`
+    : isLast
+      ? `0. 今回は「まとめ」を書く。
+     - 見出しのコピペや、本文の単なる要約の繰り返しにしない。
+     - ${design?.readerChange?.trim() ? `設計の「読後の変化」（${design.readerChange.trim()}）に沿って` : '読者の気持ちが前向きに変わるように'}、次の行動を【一つだけ】、押し売りせずに提案する。`
+      : `1. 今回は通常のH2/H3セクションを書く。
+     - 【見出し直後の1〜2文で、その見出しの答えを先に書く】。詳細はその後に続ける。
+     - 本文の型：主張 → 理由 → 具体例 →（必要なら）迷いや反論への理解 → もう一度主張。
+     - 比較・手順・料金などは文章より箇条書きにする（行頭は「・」。表の記号やMarkdown記法は使わない）。
+     - 機械的な解説を避け、友人に温かいお茶を飲みながらおすすめを教えるようなトーンで展開する。
+     - 「お守りのような」「相棒」「ホッとする」「心地よい」といった、五感や感情に訴えかける柔らかな語彙を使う。`;
+
+  const sumigiRule = mediaKey === 'sumigi'
+    ? '\n  - sumigi：seo-rules.md §5 の表現ルールを最も厳しく適用する。「治る」「防げる」「完全に除去」「必ず効果がある」「医学的に証明」「健康に効果」「改善する」「予防」は使わない。消臭・抗菌・調湿なども断定せず、「〜をサポートする機能」「使う環境で感じ方は変わります」の形にし、公開している試験結果を超える効果は書かない。'
+    : '';
 
   const SYSTEM_PROMPT = `
   ${buildRulesBlock(mediaType)}
   あなたは「${mediaType}」の専属プロライターです。
-  今回は「北欧、暮らしの道具店」や「キナリノ」のような、読者の心に優しく寄り添う、体温のあるエッセイ風のトーン＆マナーで執筆してください。
-  
-  # ★ 文字数制限（最重要・絶対厳守・違反禁止）
-  ${(sectionTag === 'h1' || isLast) ? 
-  `- 今回執筆するセクションは「${sectionTag === 'h1' ? '導入(H1)' : 'まとめ(最後のH2)'}」です。文字数を【300〜500文字程度】とし、読者の心に寄り添い、感情を動かせるよう少し長めに温かく語らせること。` : 
-  `- 今回執筆するセクションは通常の「H2/H3」です。これまで通り【150〜250文字程度】のサクッと読めるコンパクトな文字数を絶対厳守すること。`}
-  - 記事全体の総文字数が【2000〜3000文字程度】のサクッと読めるボリュームになるよう、無駄な引き伸ばしや冗長な語り口を避けること。
-  - 出力前に必ず自分で文字数をカウントし、指定範囲に収まるように削って再調整してから出力すること。
+  「北欧、暮らしの道具店」や「キナリノ」のような、読者の心に優しく寄り添う、体温のあるエッセイ風のトーン＆マナーで執筆してください。
+
+  # 事実と体験のルール（最重要・絶対厳守）
+  - 根拠にしてよいのは、渡された「参考データ」と「記事の設計」だけ。データにない固有名詞・数字・料金・営業時間・仕様を作らない。
+  - 体験として書いてよいのは、参考データに「運営者の体験」と明記されたものだけ。それ以外を、書き手自身が使った・行ったかのように書かない（「私が実際に〜した」と書かない）。
+  - 参考データの他人の話は、出どころを書く（例：「取材先の○○さんによると」「口コミでは」）。
+  - 価格・営業時間・仕様・キャンペーン・解約条件など、読者が損をしうる情報には【要確認】を付ける。
+  - 参考データに根拠がなく書けない内容は、無理に埋めず、一般的に言える範囲に留めるか【要確認】と明記する。${sumigiRule}
+
+  # 文量
+  ${lengthRule}
+  - 字数を満たすための引き伸ばしはしない。
 
   # 執筆プロトコル（絶対厳守）
-  0. H1（記事タイトル＝導入文/リード文）を書く場合：
-     - この記事全体の導入文（リード文）として執筆すること。
-     - いきなり結論を言うのではなく、「〜って悩みますよね」「〜な気がします」と読者の日常の悩みに寄り添う【共感】からスタートすること。
-     - その上で、「この記事ではこんなことがわかります」と、読者がこの先を読み進めたくなるような【ワクワク感】を演出すること。読者の好奇心を刺激し、「え、そうなの？」「もっと知りたい！」と思わせる表現を使うこと。
-     - 文章の末尾に、必ず【この記事の構成（全見出し）】を箇条書きでリストアップせよ。
-     - リストの直後に「この記事が、少しでも心地よい暮らしのヒントになれば嬉しいです」といった温かい一文を入れよ。
+  ${sectionRule}
 
-  1. 通常のH2/H3セクションを書く場合：
-     - 機械的な解説を避け、友人に温かいお茶を飲みながらおすすめを教えるようなトーンで展開せよ。
-     - 「お守りのような」「相棒」「ホッとする」「心地よい」といった、五感や感情に訴えかける柔らかな語彙を積極的に使うこと。
-     - 参考データ内の具体例は、まるで自分の体験談（一次情報）のように自然な文脈で織り交ぜること。
+  # 文体のルール
+  - 「〜です」「〜ます」の単調な連続を避ける。
+  - 「〜ですよね」「〜なんです」「〜かもしれません」「〜だなあと思います」といった、余韻を残す柔らかい語尾を適度にミックスする。
+  - 1文を長くしない。2〜3文ごとに段落（改行）を分ける。太字・マーカー等の装飾は使わない。
+  - 前後の見出しと内容が重ならないようにする。
 
-  2. 語尾と文体のルール（重要）：
-     - 「〜です」「〜ます」の単調な連続を絶対に避けること。
-     - 「〜ですよね」「〜なんです」「〜かもしれません」「〜だなあと思います」といった、余韻を残す柔らかい語尾を適度にミックスすること。
-     - 読者の視線を止めないよう、箇条書き(ul/olタグ相当の表現)を見やすく使用すること。
+  ${linkBlock}
+  # 出力
+  - 本文のみを出力する（見出し自体は出力しない）。
   `;
 
-  const tagInfo = sectionTag === 'h1' 
-    ? '\nセクション種別: H1（記事の導入文/リード文として執筆せよ）'
-    : isLast 
-      ? '\nセクション種別: H2（記事全体の最後を締めくくる「まとめ」セクションとして執筆せよ）'
-      : `\nセクション種別: ${sectionTag?.toUpperCase()}（通常セクション）`;
-  const prompt = `セクション見出し: ${sectionTitle}${tagInfo}\n全体の文脈: ${context}`;
+  const outline = structure
+    .map((it, i) => `${i === index ? '▶ ' : '  '}${it.tag.toUpperCase()}: ${it.text}`)
+    .join('\n');
+  const tagInfo = isIntro
+    ? 'セクション種別: H1（記事の導入文/リード文）'
+    : isLast
+      ? 'セクション種別: H2（記事全体の最後を締めくくる「まとめ」）'
+      : `セクション種別: ${sectionTag.toUpperCase()}（通常セクション）`;
+  const designText = designToPromptText(design);
+  const prompt = [
+    `メインKW: ${mainKeyword}`,
+    `執筆するセクション見出し: ${sectionTitle}`,
+    tagInfo,
+    `# 記事の構成（▶が今回のセクション）\n${outline}`,
+    designText,
+    `# 参考データ（一次情報）\n${databaseText.substring(0, 100000) || '（参考データなし）'}`,
+  ].filter(Boolean).join('\n\n');
   const result = await model.generateContent([SYSTEM_PROMPT, prompt]);
   return result.response.text();
 };
