@@ -19,6 +19,8 @@ interface StructureItem {
   content?: string;
 }
 
+type PapaResult<T> = { data: T[] };
+
 interface Preset {
   name: string;
   url: string;
@@ -57,6 +59,7 @@ function PheasantTool() {
 
   useEffect(() => {
     if (apiKey) checkApiConnection();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const checkApiConnection = async () => {
@@ -72,8 +75,9 @@ function PheasantTool() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const parseData = (data: any[]) => {
-      return data.map((row: any) => {
+    type Row = Record<string, unknown>;
+    const parseData = (data: Row[]) => {
+      return data.map((row) => {
         return row['キーワード'] || row['Keyword'] || row['メインキーワード'] || row['Main Keyword'] || Object.values(row)[0];
       }).filter((k): k is string => typeof k === 'string' && k.length > 0);
     };
@@ -95,14 +99,14 @@ function PheasantTool() {
       Papa.parse(file, {
         header: true,
         encoding: "Shift-JIS", 
-        complete: (results: any) => onLoad(parseData(results.data)),
+        complete: (results: PapaResult<Row>) => onLoad(parseData(results.data)),
         error: () => toast.error('CSV読み込みエラー')
       });
     } else if (file.name.match(/\.xlsx?$/)) {
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json(sheet);
+      const json = XLSX.utils.sheet_to_json<Row>(sheet);
       onLoad(parseData(json));
     }
   };
@@ -115,13 +119,13 @@ function PheasantTool() {
       const text = await res.text();
       Papa.parse(text, {
         header: true,
-        complete: (results: any) => {
-          const keywords = results.data.map((row: any) => row['キーワード'] || row['Main Keyword'] || Object.values(row)[0]).filter(Boolean);
+        complete: (results: PapaResult<Record<string, string>>) => {
+          const keywords = results.data.map((row) => row['キーワード'] || row['Main Keyword'] || Object.values(row)[0]).filter(Boolean);
           setExistingArticles(keywords);
           toast.success(`連携完了: ${keywords.length}件`, { id: toastId });
         }
       });
-    } catch (e) {
+    } catch {
       toast.error('読み込み失敗', { id: toastId });
     }
   };
@@ -150,7 +154,7 @@ function PheasantTool() {
       const result = await generateStructure(mainKeyword, subKeywords.slice(0, 20), databaseText);
       setStructure(result.structure);
       toast.success('構成案完成');
-    } catch (e) {
+    } catch {
       toast.error('生成失敗');
     }
     setIsGenerating(false);
@@ -171,7 +175,7 @@ function PheasantTool() {
         return newS;
       });
       toast.success('執筆完了', { id: toastId });
-    } catch (e) { toast.error('執筆エラー', { id: toastId }); }
+    } catch { toast.error('執筆エラー', { id: toastId }); }
     setWritingIndex(null);
     setIsGenerating(false);
   };
@@ -207,7 +211,7 @@ function PheasantTool() {
           newS[idx] = { ...newS[idx], content };
           return newS;
         });
-      } catch (e) {
+      } catch {
         toast.error(`「${structure[idx].text}」の執筆に失敗`);
       }
 

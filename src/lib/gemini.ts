@@ -9,7 +9,7 @@ export const initGemini = async (apiKey: string) => {
     const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
     await model.generateContent("test");
     return true; 
-  } catch (e) {
+  } catch {
     return false; 
   }
 };

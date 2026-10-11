@@ -13,23 +13,25 @@ export const HistoryPanel: React.FC<Props> = ({ isOpen, onClose }) => {
   const [records, setRecords] = useState<HistoryRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // パネルが開いたときだけIndexedDBから読み込む（起動時負荷ゼロ）
-  useEffect(() => {
-    if (isOpen) {
-      loadRecords();
-    }
-  }, [isOpen]);
-
   const loadRecords = async () => {
     setIsLoading(true);
     try {
       const data = await getAllArticles();
       setRecords(data);
-    } catch (e) {
+    } catch {
       toast.error('履歴の読み込みに失敗しました');
     }
     setIsLoading(false);
   };
+
+  // パネルが開いたときだけIndexedDBから読み込む（起動時負荷ゼロ）
+  useEffect(() => {
+    if (isOpen) {
+      // パネルを開いた時の非同期読み込み開始（外部ストア同期）なので意図的
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      loadRecords();
+    }
+  }, [isOpen]);
 
   const handleCopy = (record: HistoryRecord) => {
     navigator.clipboard.writeText(record.plainText);
@@ -42,7 +44,7 @@ export const HistoryPanel: React.FC<Props> = ({ isOpen, onClose }) => {
       await deleteArticle(id);
       setRecords(prev => prev.filter(r => r.id !== id));
       toast.success('削除しました');
-    } catch (e) {
+    } catch {
       toast.error('削除に失敗しました');
     }
   };

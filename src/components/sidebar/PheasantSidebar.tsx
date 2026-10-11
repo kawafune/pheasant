@@ -12,7 +12,7 @@ type Props = {
   setApiKey: (s: string) => void;
   checkApiConnection: () => void;
   handleFileUpload: (e: React.ChangeEvent<HTMLInputElement>, type: 'dokusou' | 'history') => void;
-  presets: any[];
+  presets: { name: string; url: string }[];
   loadPreset: (url: string) => void;
   newPresetName: string;
   setNewPresetName: (s: string) => void;
