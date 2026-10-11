@@ -239,9 +239,10 @@ interface StructureForPolish {
   content?: string;
 }
 
-export const polishWholeArticle = async (structure: StructureForPolish[], mainKeyword: string, mediaType: string): Promise<StructureForPolish[]> => {
+export const polishWholeArticle = async (structure: StructureForPolish[], mainKeyword: string, mediaType: string, databaseText: string = ''): Promise<StructureForPolish[]> => {
   if (!genAI) throw new Error("API Key not set");
   const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+  const mediaKey = MEDIA_RULE_KEY[mediaType] ?? 'default';
 
   const SYSTEM_PROMPT = `
   ${buildRulesBlock(mediaType)}
@@ -251,11 +252,13 @@ export const polishWholeArticle = async (structure: StructureForPolish[], mainKe
   # 推敲ルール（絶対厳守）
   1. [重複排除]: 各見出し間で「同じ単語の多用」や「内容の重複」を見つけたら、片方を削るか別の表現に書き換えよ。
   2. [文脈の流れ]: 全体として自然で流れるような1つの記事として読めるよう、セクション間の接続を調整せよ。
-  3. [文字数維持]: 各セクションの文字数は【150〜250文字程度】を維持すること。推敲で大幅に増やしたり減らしたりしないこと。
+  3. [文字数維持]: 各セクションの字数を大きく変えないこと。推敲で大幅に増やしたり減らしたりしない。
   4. [トーン維持]: 「北欧、暮らしの道具店」や「キナリノ」風の温かいエッセイ調のトーン＆マナーを崩さないこと。
   5. [見出し保持]: 各セクションの見出し（text）は原則として変更しないこと。本文（content）の推敲に集中せよ。
-  6. [メインKW保持]: メインキーワード「${mainKeyword}」の配置は変更しないこと。
-
+  6. [メインKW保持]: メインキーワード「${mainKeyword}」の配置は今のまま保つこと。完全一致の確認や、KWを入れるための書き換えはしない。
+  7. [事実の点検]: 参考データにない事実・体験（固有名詞・数字・料金・営業時間・「私が実際に〜した」のような書き手自身の体験）が混ざっていたら、削るか【要確認】を付けること。体験として残してよいのは、参考データに「運営者の体験」と明記されたものだけ。他人の体験は出どころ（「取材先の○○さんによると」「口コミでは」）が分かる形にする。
+  8. [リンクの置き場]: 本文中の「【リンク：送客先】」「【要確認】」の表記は消さず、位置も変えないこと。
+${mediaKey === 'sumigi' ? `  9. [sumigi・表現の点検]: seo-rules.md §5 のNG表現（「治る」「防げる」「完全に除去」「必ず効果がある」「医学的に証明」「健康に効果」「改善する」「予防」など）が残っていたら、「〜をサポートする機能」「使う環境で感じ方は変わります」などのOK表現に直すこと。公開している試験結果を超える効果は書かない。\n` : ''}
   # 入出力形式
   - 入力・出力ともに以下のJSON配列形式とする。
   - 全セクションを含めた完全な配列を出力すること（一部だけの出力は不可）。
@@ -267,7 +270,7 @@ export const polishWholeArticle = async (structure: StructureForPolish[], mainKe
   `;
 
   const articleJson = JSON.stringify(structure, null, 2);
-  const prompt = `以下の記事全体を推敲してください。\nメインKW: ${mainKeyword}\n\n${articleJson}`;
+  const prompt = `以下の記事全体を推敲してください。\nメインKW: ${mainKeyword}\n\n# 参考データ（一次情報。事実の点検に使う）\n${databaseText.substring(0, 100000) || '（参考データなし）'}\n\n# 記事\n${articleJson}`;
   const result = await model.generateContent([SYSTEM_PROMPT, prompt]);
   const text = result.response.text();
   const jsonMatch = text.match(/\[[\s\S]*\]/);

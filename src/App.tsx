@@ -247,7 +247,7 @@ function PheasantTool() {
     try {
       // 既存のgemini.tsに追加された polishWholeArticle をインポートして呼び出す
       const { polishWholeArticle } = await import('./lib/gemini');
-      const polishedStructure = await polishWholeArticle(structure, mainKeyword, mediaType);
+      const polishedStructure = await polishWholeArticle(structure, mainKeyword, mediaType, databaseText);
       
       // 結果で上書き
       setStructure(polishedStructure as StructureItem[]);
