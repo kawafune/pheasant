@@ -70,3 +70,42 @@ export const runCodeChecks = (structure: ArticleSection[]): CheckItem[] => [
   checkH1Length(structure),
   checkNgPhrases(structure),
 ];
+
+// 本文に残っている「人が対応するところ」（【要確認…】と【リンク…】）を拾う。AIは使わない。
+export type TodoKind = 'confirm' | 'link';
+
+export interface TodoItem {
+  kind: TodoKind;
+  marker: string; // 例：【要確認：営業時間を公式サイトで確認】
+  sectionTag: 'h1' | 'h2' | 'h3';
+  sectionText: string;
+  context: string; // マーカーを含む行（長い場合は前後を切る）
+}
+
+const TODO_PATTERN = /【(要確認|リンク)[^】]*】/g;
+
+const cutContext = (line: string, marker: string): string => {
+  const trimmed = line.trim();
+  if (trimmed.length <= 90) return trimmed;
+  const pos = trimmed.indexOf(marker);
+  const start = Math.max(0, pos - 40);
+  return `${start > 0 ? '…' : ''}${trimmed.slice(start, pos + marker.length + 40)}…`;
+};
+
+export const extractTodos = (structure: ArticleSection[]): TodoItem[] => {
+  const todos: TodoItem[] = [];
+  structure.forEach((section) => {
+    (section.content ?? '').split('\n').forEach((line) => {
+      for (const match of line.matchAll(TODO_PATTERN)) {
+        todos.push({
+          kind: match[1] === 'リンク' ? 'link' : 'confirm',
+          marker: match[0],
+          sectionTag: section.tag,
+          sectionText: section.text,
+          context: cutContext(line, match[0]),
+        });
+      }
+    });
+  });
+  return todos;
+};

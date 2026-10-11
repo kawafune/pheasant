@@ -6,8 +6,10 @@ import { StructureItem as StructureItemComponent } from './StructureItem';
 import { HistoryPanel } from './HistoryPanel';
 import { ArticleMetaPanel } from './ArticleMetaPanel';
 import { CheckResultPanel } from './CheckResultPanel';
+import { TodoPanel } from './TodoPanel';
 import type { ArticleMeta } from '../../lib/articleDesign';
 import type { CheckItem } from '../../lib/articleCheck';
+import { extractTodos } from '../../lib/articleCheck';
 import { saveArticle } from '../../lib/historyDb';
 
 type StructureItemData = {
@@ -35,6 +37,14 @@ type Props = {
 
 export const PheasantEditor: React.FC<Props> = ({ structure, setStructure, handleWriteSection, handleWriteAllSections, handlePolishWholeArticle, isGenerating, isPolishing, writingIndex, mainKeyword, meta, handleCheckArticle, isChecking, checkResults, closeCheckResults }) => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const todos = extractTodos(structure);
+
+  // 未解決のマークが残っていても、コピーは止めずに件数だけ知らせる
+  const warnRemainingTodos = () => {
+    if (todos.length > 0) {
+      toast(`【要確認】/【リンク】が${todos.length}件残っています。上の「公開前にやること」を確認してください`, { icon: '⚠️', duration: 6000 });
+    }
+  };
 
   // 記事全体をプレーンテキストに変換するユーティリティ
   const buildPlainText = (): string => {
@@ -68,6 +78,7 @@ export const PheasantEditor: React.FC<Props> = ({ structure, setStructure, handl
 
     navigator.clipboard.writeText(html);
     toast.success("WordPress用HTMLをコピーしました！", { icon: '📋' });
+    warnRemainingTodos();
   };
 
   const copyAsPlainText = async () => {
@@ -76,6 +87,7 @@ export const PheasantEditor: React.FC<Props> = ({ structure, setStructure, handl
     const plainText = buildPlainText();
     navigator.clipboard.writeText(plainText);
     toast.success("テキストをコピーしました！（改行保持）", { icon: '📝' });
+    warnRemainingTodos();
 
     // IndexedDB に自動保存
     try {
@@ -118,6 +130,8 @@ export const PheasantEditor: React.FC<Props> = ({ structure, setStructure, handl
             onOpenHistory={() => setIsHistoryOpen(true)}
           />
           
+          <TodoPanel todos={todos} />
+
           {checkResults && <CheckResultPanel items={checkResults} onClose={closeCheckResults} />}
 
           <ArticleMetaPanel meta={meta} />
