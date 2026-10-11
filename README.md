@@ -71,3 +71,9 @@ export default defineConfig([
   },
 ])
 ```
+
+## SEO ルールの更新方法
+
+1. Notion「SEO_Master_Logic」を更新する
+2. Claude が `seo-rules.md` を作り直す
+3. `src/lib/seo-rules.md` をそのファイルに差し替える
