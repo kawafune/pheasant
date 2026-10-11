@@ -7,6 +7,8 @@ import { Toaster, toast } from 'react-hot-toast';
 import { Lock, ShieldAlert } from 'lucide-react';
 import { PheasantSidebar } from './components/sidebar/PheasantSidebar';
 import { PheasantEditor } from './components/editor/PheasantEditor';
+import { DESIGN_STORAGE_KEY, EMPTY_DESIGN, normalizeDesign } from './lib/articleDesign';
+import type { ArticleDesign } from './lib/articleDesign';
 
 const ALLOWED_EMAILS = [
   "ark6122of.eins@gmail.com",
@@ -40,6 +42,7 @@ function PheasantTool() {
   const [subKeywords, setSubKeywords] = useState<string[]>(() => loadState('kiwi_sub', []));
   const [databaseText, setDatabaseText] = useState(() => loadState('kiwi_db', ''));
   const [structure, setStructure] = useState<StructureItem[]>(() => loadState('kiwi_struct', []));
+  const [design, setDesign] = useState<ArticleDesign>(() => normalizeDesign(loadState(DESIGN_STORAGE_KEY, EMPTY_DESIGN)));
   const [isGenerating, setIsGenerating] = useState(false);
   const [writingIndex, setWritingIndex] = useState<number | null>(null);
   const [isPolishing, setIsPolishing] = useState(false);
@@ -55,6 +58,7 @@ function PheasantTool() {
   useEffect(() => localStorage.setItem('kiwi_sub', JSON.stringify(subKeywords)), [subKeywords]);
   useEffect(() => localStorage.setItem('kiwi_db', JSON.stringify(databaseText)), [databaseText]);
   useEffect(() => localStorage.setItem('kiwi_struct', JSON.stringify(structure)), [structure]);
+  useEffect(() => localStorage.setItem(DESIGN_STORAGE_KEY, JSON.stringify(design)), [design]);
   useEffect(() => localStorage.setItem('kiwi_presets', JSON.stringify(presets)), [presets]);
 
   useEffect(() => {
@@ -255,7 +259,7 @@ function PheasantTool() {
 
   const clearAll = () => {
     if(!confirm("リセットしますか？")) return;
-    setMainKeyword(''); setSubKeywords([]); setDatabaseText(''); setStructure([]);
+    setMainKeyword(''); setSubKeywords([]); setDatabaseText(''); setStructure([]); setDesign(EMPTY_DESIGN);
     toast('リセットしました', { icon: '🧹' });
   };
 
@@ -263,7 +267,7 @@ function PheasantTool() {
     <div className="min-h-screen flex bg-stone-50 text-slate-800" style={{ fontFamily: "'Noto Sans JP', sans-serif" }}>
       <Toaster position="top-right" />
       <PheasantSidebar 
-        {...{apiStatus, apiKey, setApiKey, checkApiConnection, handleFileUpload, presets, loadPreset, newPresetName, setNewPresetName, newPresetUrl, setNewPresetUrl, savePreset, mainKeyword, setMainKeyword, subKeywords, cannibalAlert, databaseText, setDatabaseText, handleGenerateStructure, isGenerating, clearAll, mediaType, setMediaType}} 
+        {...{apiStatus, apiKey, setApiKey, checkApiConnection, handleFileUpload, presets, loadPreset, newPresetName, setNewPresetName, newPresetUrl, setNewPresetUrl, savePreset, mainKeyword, setMainKeyword, subKeywords, cannibalAlert, databaseText, setDatabaseText, handleGenerateStructure, isGenerating, clearAll, mediaType, setMediaType, design, setDesign}} 
       />
       <PheasantEditor 
         {...{structure, setStructure, handleWriteSection, handleWriteAllSections, handlePolishWholeArticle, isGenerating, isPolishing, writingIndex, mainKeyword}} 

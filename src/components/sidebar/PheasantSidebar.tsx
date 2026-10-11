@@ -5,6 +5,8 @@ import { ApiKeySection } from './ApiKeySection';
 import { DataUploader } from './DataUploader';
 import { KeywordSettings } from './KeywordSettings';
 import { DatabaseInput } from './DatabaseInput';
+import { DesignInput } from './DesignInput';
+import type { ArticleDesign } from '../../lib/articleDesign';
 
 type Props = {
   apiStatus: 'idle' | 'ok' | 'error';
@@ -30,6 +32,8 @@ type Props = {
   clearAll: () => void;
   mediaType: string;
   setMediaType: (s: string) => void;
+  design: ArticleDesign;
+  setDesign: (d: ArticleDesign) => void;
 };
 
 export const PheasantSidebar: React.FC<Props> = (props) => {
@@ -72,6 +76,8 @@ export const PheasantSidebar: React.FC<Props> = (props) => {
             cannibalAlert={props.cannibalAlert}
           />
           
+          <DesignInput design={props.design} setDesign={props.setDesign} />
+
           <DatabaseInput 
             databaseText={props.databaseText}
             setDatabaseText={props.setDatabaseText}
