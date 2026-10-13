@@ -16,6 +16,7 @@ export interface SheetSource {
   label: string;
   state: 'loading' | 'ok' | 'error';
   message?: string;
+  auto?: string; // 掲載メディアの選択で自動読み込みしたシートなら、そのメディア
   entries: SheetEntry[];
   writtenCount: number;
   skipCount: number;
@@ -60,6 +61,12 @@ export const parseSheetUrl = (url: string): ParsedSheetUrl | null => {
   if (!m) return null;
   const g = url.match(/[#&?]gid=(\d+)/);
   return { id: m[1], gid: g ? g[1] : '0' };
+};
+
+// 同じシートを二重に登録しないための識別キー
+export const sheetKeyOf = (url: string): string => {
+  const parsed = parseSheetUrl(url);
+  return parsed ? `sheet:${parsed.id}` : `url:${url}`;
 };
 
 export const sheetLabel = (id: string): string => KNOWN_SHEETS[id]?.label ?? 'シート';

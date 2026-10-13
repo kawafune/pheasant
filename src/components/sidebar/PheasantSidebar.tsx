@@ -29,6 +29,7 @@ type Props = {
   cannibalAlerts: CannibalAlert[];
   activeSheetSources: [string, SheetSource][];
   reloadSheetSource: (key: string) => void;
+  removeSheetSource: (key: string) => void;
   databaseText: string;
   setDatabaseText: (s: string) => void;
   handleGenerateStructure: () => void;
@@ -71,6 +72,7 @@ export const PheasantSidebar: React.FC<Props> = (props) => {
           savePreset={props.savePreset}
           activeSheetSources={props.activeSheetSources}
           reloadSheetSource={props.reloadSheetSource}
+          removeSheetSource={props.removeSheetSource}
         />
 
         <div className="space-y-4">

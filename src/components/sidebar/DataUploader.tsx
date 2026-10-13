@@ -1,5 +1,5 @@
 import React from 'react';
-import { Upload, RefreshCw } from 'lucide-react';
+import { Upload, RefreshCw, X } from 'lucide-react';
 import type { SheetSource } from '../../lib/sheetKeywords';
 
 type Preset = { name: string; url: string };
@@ -15,6 +15,7 @@ type Props = {
   savePreset: () => void;
   activeSheetSources: [string, SheetSource][];
   reloadSheetSource: (key: string) => void;
+  removeSheetSource: (key: string) => void;
 };
 
 export const DataUploader: React.FC<Props> = (props) => {
@@ -49,14 +50,23 @@ export const DataUploader: React.FC<Props> = (props) => {
                   {src.state === 'ok' && `✓ ${src.label}：書いた ${src.writtenCount.toLocaleString()}件／書かない ${src.skipCount.toLocaleString()}件`}
                   {src.state === 'error' && `⚠ ${src.label}：${src.message}`}
                 </span>
-                <button
-                  onClick={() => props.reloadSheetSource(key)}
-                  disabled={src.state === 'loading'}
-                  className="text-slate-400 hover:text-emerald-700 disabled:opacity-40 flex-shrink-0 transition"
-                  title="再読み込み"
-                >
-                  <RefreshCw size={12} className={src.state === 'loading' ? 'animate-spin' : ''} />
-                </button>
+                <span className="flex items-center gap-1.5 flex-shrink-0">
+                  <button
+                    onClick={() => props.reloadSheetSource(key)}
+                    disabled={src.state === 'loading'}
+                    className="text-slate-400 hover:text-emerald-700 disabled:opacity-40 transition"
+                    title="再読み込み"
+                  >
+                    <RefreshCw size={12} className={src.state === 'loading' ? 'animate-spin' : ''} />
+                  </button>
+                  <button
+                    onClick={() => props.removeSheetSource(key)}
+                    className="text-slate-400 hover:text-red-500 transition"
+                    title="この連携を外す"
+                  >
+                    <X size={12} />
+                  </button>
+                </span>
               </li>
             ))}
           </ul>

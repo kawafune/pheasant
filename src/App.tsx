@@ -8,7 +8,8 @@ import { PheasantSidebar } from './components/sidebar/PheasantSidebar';
 import { PheasantEditor } from './components/editor/PheasantEditor';
 import { LoginGate } from './components/LoginGate';
 import { findCannibals } from './lib/cannibal';
-import { loadSheetEntries, parseSheetUrl, sheetLabel, SHEET_URL_BY_MEDIA } from './lib/sheetKeywords';
+import { loadSheetEntries, parseSheetUrl, sheetKeyOf, sheetLabel, SHEET_URL_BY_MEDIA } from './lib/sheetKeywords';
+import { DuplicateModal } from './components/DuplicateModal';
 import type { SheetSource } from './lib/sheetKeywords';
 import { isLoggedIn, logout } from './lib/auth';
 import { DESIGN_STORAGE_KEY, EMPTY_DESIGN, EMPTY_META, META_STORAGE_KEY, normalizeDesign, normalizeMeta } from './lib/articleDesign';
@@ -45,6 +46,7 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
   const [meta, setMeta] = useState<ArticleMeta>(() => normalizeMeta(loadState(META_STORAGE_KEY, EMPTY_META)));
   const [checkResults, setCheckResults] = useState<CheckItem[] | null>(null);
   const [isChecking, setIsChecking] = useState(false);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [writingIndex, setWritingIndex] = useState<number | null>(null);
   const [isPolishing, setIsPolishing] = useState(false);
@@ -118,34 +120,44 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
     }
   };
 
-  // Googleスプレッドシートを読み込み、「書いた／書かない」行を保持する
-  const loadSheetSource = async (key: string, url: string, showToast = false) => {
+  // Googleスプレッドシートを読み込み、「書いた／書かない」行を保持する（同じシートは1つにまとめる）
+  const loadSheetSource = async (url: string, opts: { auto?: string; showToast?: boolean } = {}) => {
+    const key = sheetKeyOf(url);
+    const { auto, showToast = false } = opts;
     const parsed = parseSheetUrl(url);
     const label = parsed ? sheetLabel(parsed.id) : 'シート';
-    setSheetSources(prev => ({ ...prev, [key]: { url, label, state: 'loading', entries: [], writtenCount: 0, skipCount: 0 } }));
+    setSheetSources(prev => ({ ...prev, [key]: { url, label, auto, state: 'loading', entries: [], writtenCount: 0, skipCount: 0 } }));
     try {
       const result = await loadSheetEntries(url);
       setSheetSources(prev => ({
         ...prev,
-        [key]: { url, label, state: 'ok', entries: result.entries, writtenCount: result.writtenCount, skipCount: result.skipCount },
+        [key]: { url, label, auto, state: 'ok', entries: result.entries, writtenCount: result.writtenCount, skipCount: result.skipCount },
       }));
       if (showToast) toast.success(`${label}: 書いた ${result.writtenCount}件 / 書かない ${result.skipCount}件`);
     } catch (e) {
       const message = e instanceof Error ? e.message : '読み込みに失敗しました';
-      setSheetSources(prev => ({ ...prev, [key]: { url, label, state: 'error', message, entries: [], writtenCount: 0, skipCount: 0 } }));
+      setSheetSources(prev => ({ ...prev, [key]: { url, label, auto, state: 'error', message, entries: [], writtenCount: 0, skipCount: 0 } }));
       if (showToast) toast.error(message);
     }
   };
 
   const reloadSheetSource = (key: string) => {
     const source = sheetSources[key];
-    if (source) loadSheetSource(key, source.url, true);
+    if (source) loadSheetSource(source.url, { auto: source.auto, showToast: true });
+  };
+
+  const removeSheetSource = (key: string) => {
+    setSheetSources(prev => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
   };
 
   const loadPreset = async (url: string) => {
     // Googleスプレッドシートの共有URLなら、シートから直接読む
     if (parseSheetUrl(url)) {
-      await loadSheetSource(`preset:${url}`, url, true);
+      await loadSheetSource(url, { showToast: true });
       return;
     }
     const toastId = toast.loading('取得中...');
@@ -171,13 +183,13 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
     const url = SHEET_URL_BY_MEDIA[mediaType];
     if (url) {
       // 画面を開いた時・メディアを変えた時に、対応するシートを読み込む
-      loadSheetSource(`media:${mediaType}`, url);
+      loadSheetSource(url, { auto: mediaType });
     }
   }, [mediaType]);
 
   // いま使うシート: 手動で追加したものと、選択中の掲載メディアのシート
   const activeSheetSources = useMemo(
-    () => Object.entries(sheetSources).filter(([key]) => !key.startsWith('media:') || key === `media:${mediaType}`),
+    () => Object.entries(sheetSources).filter(([, src]) => !src.auto || src.auto === mediaType),
     [sheetSources, mediaType],
   );
 
@@ -208,6 +220,16 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
       toast.error('生成失敗');
     }
     setIsGenerating(false);
+  };
+
+  // 「書いた」「書かない」キーワードなら、構成案を作る前に確認する（近い記事の黄色表示だけなら確認しない）
+  const blockingAlerts = cannibalAlerts.filter(a => a.level !== 'near');
+  const requestGenerateStructure = () => {
+    if (apiStatus === 'ok' && blockingAlerts.length > 0) {
+      setDuplicateOpen(true);
+      return;
+    }
+    handleGenerateStructure();
   };
 
   const handleWriteSection = async (index: number) => {
@@ -328,8 +350,19 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
   return (
     <div className="min-h-screen flex bg-stone-50 text-slate-800" style={{ fontFamily: "'Noto Sans JP', sans-serif" }}>
       <Toaster position="top-right" />
+      {duplicateOpen && (
+        <DuplicateModal
+          keyword={mainKeyword}
+          alerts={blockingAlerts}
+          onCancel={() => setDuplicateOpen(false)}
+          onProceed={() => {
+            setDuplicateOpen(false);
+            handleGenerateStructure();
+          }}
+        />
+      )}
       <PheasantSidebar 
-        {...{apiStatus, apiKey, setApiKey, checkApiConnection, handleFileUpload, presets, loadPreset, newPresetName, setNewPresetName, newPresetUrl, setNewPresetUrl, savePreset, mainKeyword, setMainKeyword, subKeywords, cannibalAlerts, activeSheetSources, reloadSheetSource, databaseText, setDatabaseText, handleGenerateStructure, isGenerating, clearAll, mediaType, setMediaType, design, setDesign, onLogout}} 
+        {...{apiStatus, apiKey, setApiKey, checkApiConnection, handleFileUpload, presets, loadPreset, newPresetName, setNewPresetName, newPresetUrl, setNewPresetUrl, savePreset, mainKeyword, setMainKeyword, subKeywords, cannibalAlerts, activeSheetSources, reloadSheetSource, removeSheetSource, databaseText, setDatabaseText, handleGenerateStructure: requestGenerateStructure, isGenerating, clearAll, mediaType, setMediaType, design, setDesign, onLogout}} 
       />
       <PheasantEditor 
         {...{structure, setStructure, handleWriteSection, handleWriteAllSections, handlePolishWholeArticle, isGenerating, isPolishing, writingIndex, mainKeyword, meta, handleCheckArticle, isChecking, checkResults, closeCheckResults: () => setCheckResults(null)}} 
