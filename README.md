@@ -83,3 +83,9 @@ export default defineConfig([
 1. `node scripts/hash-passcode.mjs 新しい合言葉` を実行する
 2. 出力されたハッシュを `src/lib/auth.ts` の `PASSCODE_HASH` に貼り替える
 3. コミットして push する（変更後は全員が再ログインになる）
+
+## キーワードシート連携（カニバリ確認）
+
+- 掲載メディア（sumigi / タビノト。 / cocci）を選ぶと、対応するスプレッドシートを自動で読み込む（`src/lib/sheetKeywords.ts` の `SHEET_URL_BY_MEDIA`）
+- 「書いた・作業中」は赤、「書かない」と「近い記事」は黄で警告する。保管タブ（writing_archives）も対象
+- シートは「リンクを知っている全員が閲覧可」にしておく。ブラウザから直接読めない場合は `api/sheet.js`（Vercel）経由で読む

@@ -7,6 +7,8 @@ import { KeywordSettings } from './KeywordSettings';
 import { DatabaseInput } from './DatabaseInput';
 import { DesignInput } from './DesignInput';
 import type { ArticleDesign } from '../../lib/articleDesign';
+import type { CannibalAlert } from '../../lib/cannibal';
+import type { SheetSource } from '../../lib/sheetKeywords';
 
 type Props = {
   apiStatus: 'idle' | 'ok' | 'error';
@@ -24,7 +26,9 @@ type Props = {
   mainKeyword: string;
   setMainKeyword: (s: string) => void;
   subKeywords: string[];
-  cannibalAlert: string | null;
+  cannibalAlerts: CannibalAlert[];
+  activeSheetSources: [string, SheetSource][];
+  reloadSheetSource: (key: string) => void;
   databaseText: string;
   setDatabaseText: (s: string) => void;
   handleGenerateStructure: () => void;
@@ -65,6 +69,8 @@ export const PheasantSidebar: React.FC<Props> = (props) => {
           newPresetUrl={props.newPresetUrl}
           setNewPresetUrl={props.setNewPresetUrl}
           savePreset={props.savePreset}
+          activeSheetSources={props.activeSheetSources}
+          reloadSheetSource={props.reloadSheetSource}
         />
 
         <div className="space-y-4">
@@ -74,7 +80,7 @@ export const PheasantSidebar: React.FC<Props> = (props) => {
             mainKeyword={props.mainKeyword}
             setMainKeyword={props.setMainKeyword}
             subKeywords={props.subKeywords}
-            cannibalAlert={props.cannibalAlert}
+            cannibalAlerts={props.cannibalAlerts}
           />
           
           <DesignInput design={props.design} setDesign={props.setDesign} />

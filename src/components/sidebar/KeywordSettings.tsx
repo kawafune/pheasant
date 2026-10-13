@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertTriangle } from 'lucide-react';
+import type { CannibalAlert } from '../../lib/cannibal';
 
 type Props = {
   mediaType: string;
@@ -7,10 +8,15 @@ type Props = {
   mainKeyword: string;
   setMainKeyword: (s: string) => void;
   subKeywords: string[];
-  cannibalAlert: string | null;
+  cannibalAlerts: CannibalAlert[];
 };
 
 export const KeywordSettings: React.FC<Props> = (props) => {
+  const hasWritten = props.cannibalAlerts.some((a) => a.level === 'written');
+  const skips = props.cannibalAlerts.filter((a) => a.level === 'skip');
+  const nears = props.cannibalAlerts.filter((a) => a.level === 'near');
+  const writtens = props.cannibalAlerts.filter((a) => a.level === 'written');
+
   return (
     <>
       <div>
@@ -32,9 +38,28 @@ export const KeywordSettings: React.FC<Props> = (props) => {
         <input 
           value={props.mainKeyword} 
           onChange={(e) => props.setMainKeyword(e.target.value)}
-          className={`w-full p-2.5 border-2 rounded-md font-bold outline-none text-slate-800 transition ${props.cannibalAlert ? 'border-red-400 bg-red-50/50' : 'border-slate-200 focus:border-emerald-500 bg-white'}`} 
+          className={`w-full p-2.5 border-2 rounded-md font-bold outline-none text-slate-800 transition ${hasWritten ? 'border-red-400 bg-red-50/50' : 'border-slate-200 focus:border-emerald-500 bg-white'}`} 
         />
-        {props.cannibalAlert && <div className="text-red-500 text-xs mt-1.5 flex gap-1 font-bold animate-pulse"><AlertTriangle size={12}/> {props.cannibalAlert}</div>}
+        {writtens.map((a, i) => (
+          <div key={`w${i}`} className="text-red-500 text-xs mt-1.5 flex gap-1 font-bold animate-pulse">
+            <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" /> 🔴 既に記事があります：「{a.keyword}」（{a.label}／{a.source}）
+          </div>
+        ))}
+        {skips.map((a, i) => (
+          <div key={`s${i}`} className="text-amber-600 text-xs mt-1.5 flex gap-1 font-bold">
+            <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" /> 🟡 「書かない」と判定済みです：「{a.keyword}」（{a.source}）
+          </div>
+        ))}
+        {nears.length > 0 && (
+          <div className="text-amber-600 text-xs mt-1.5">
+            <div className="flex gap-1 font-bold"><AlertTriangle size={12} className="flex-shrink-0 mt-0.5" /> 🟡 近い記事があります（重なっていないか確認）</div>
+            <ul className="mt-0.5 pl-5 list-disc font-normal">
+              {nears.map((a, i) => (
+                <li key={i}>「{a.keyword}」（{a.label}／{a.source}）</li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       {props.subKeywords.length > 0 && (
