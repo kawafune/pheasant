@@ -17,12 +17,20 @@ export const DatabaseInput: React.FC<Props> = ({ databaseText, setDatabaseText, 
     <>
       <div>
         <label className="block text-[11px] font-bold mb-1.5 text-slate-500 tracking-wider uppercase">データベース (記事素材)</label>
+        <div className="mb-2 rounded-md border border-amber-200 bg-amber-50/70 p-2.5 text-[11px] leading-relaxed text-slate-600">
+          <p className="font-bold text-amber-700">※ ここに入力する情報で、記事の仕上がりが変わります</p>
+          <p className="mt-0.5">記事は、ここに入れた内容だけを根拠に書きます。ないことは書かないので、素材が少ないと記事も薄くなります。</p>
+          <ul className="mt-1 list-disc pl-4">
+            <li>取材メモ、職人・店主の言葉、口コミ、スペック、料金、営業時間などを入れる</li>
+            <li>書き手自身の体験は「運営者の体験：」と書き添える（書いていないものは体験として書かれません）</li>
+          </ul>
+        </div>
         <div className="relative">
           <textarea 
             value={databaseText} 
             onChange={(e) => setDatabaseText(e.target.value)}
             className="w-full p-3 border border-slate-200 bg-white text-slate-800 rounded-md h-40 text-xs leading-relaxed focus:ring-1 focus:ring-emerald-500/30 focus:border-emerald-500 outline-none transition resize-y"
-            placeholder="参考記事や口コミをペーストしてください（自動保存されます）"
+            placeholder="取材メモ・口コミ・スペック・料金などをペーストしてください（自動保存されます）"
           />
           <div className={`text-[10px] text-right mt-1 font-mono transition-colors ${isOverLimit ? 'text-red-600 font-bold' : 'text-slate-400'}`}>
             {charCount.toLocaleString()} / 100,000文字
