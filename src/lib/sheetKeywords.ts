@@ -112,6 +112,14 @@ export const parseSheetRows = (rows: string[][], source: string): SheetEntry[] =
   const header = headerIdx >= 0 ? rows[headerIdx] : [];
   const urlCol = header.findIndex((c) => c.trim().toUpperCase() === 'URL');
 
+  // ステータスを読む列。見出しが「ステータス」「状態」「済」の列があればそこだけ。
+  // なければ、見出しのある列だけを見る（表の外に置かれた凡例の「済」「書かない」を拾わないため）
+  const isStatusHeader = (c: string) => /ステータス|状態|状況/.test(c) || c.normalize('NFKC').trim() === '済';
+  let statusCols = header.map((c, i) => (isStatusHeader(c) ? i : -1)).filter((i) => i >= 0);
+  if (statusCols.length === 0) {
+    statusCols = header.map((c, i) => (c.trim() && i !== kwCol ? i : -1)).filter((i) => i >= 0);
+  }
+
   const entries: SheetEntry[] = [];
   for (let i = headerIdx + 1; i < rows.length; i++) {
     const row = rows[i];
@@ -121,8 +129,9 @@ export const parseSheetRows = (rows: string[][], source: string): SheetEntry[] =
 
     let status: EntryStatus | null = null;
     let label = '';
-    row.forEach((cell, c) => {
+    statusCols.forEach((c) => {
       if (c === kwCol) return;
+      const cell = row[c] ?? '';
       const st = classifyStatus(cell);
       if (!st) return;
       // 「書いた」が「書かない」より優先
