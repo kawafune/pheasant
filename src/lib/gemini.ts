@@ -56,6 +56,7 @@ export const generateStructure = async (
   databaseText: string,
   mediaType: string = 'default',
   design?: ArticleDesign,
+  signal?: AbortSignal,
 ): Promise<StructureResult> => {
   if (!genAI) throw new Error("API Key not set");
   const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
@@ -96,7 +97,7 @@ export const generateStructure = async (
 
   const designText = designToPromptText(design);
   const prompt = `メインKW: ${mainKeyword}\nサブKW: ${subKeywords.join(", ")}\n${designText ? designText + "\n" : ""}参考データ: ${databaseText.substring(0, 100000)}`;
-  const result = await model.generateContent([SYSTEM_PROMPT, prompt]);
+  const result = await model.generateContent([SYSTEM_PROMPT, prompt], { signal });
   const text = result.response.text();
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error("JSON生成失敗");

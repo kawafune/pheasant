@@ -1,15 +1,17 @@
 import React from 'react';
-import { RefreshCw, FileText } from 'lucide-react';
+import { RefreshCw, FileText, Square } from 'lucide-react';
 
 type Props = {
   databaseText: string;
   setDatabaseText: (s: string) => void;
   handleGenerateStructure: () => void;
+  stopGenerateStructure: () => void;
+  isStructuring: boolean;
   isGenerating: boolean;
   mainKeyword: string;
 };
 
-export const DatabaseInput: React.FC<Props> = ({ databaseText, setDatabaseText, handleGenerateStructure, isGenerating, mainKeyword }) => {
+export const DatabaseInput: React.FC<Props> = ({ databaseText, setDatabaseText, handleGenerateStructure, stopGenerateStructure, isStructuring, isGenerating, mainKeyword }) => {
   const charCount = databaseText.length;
   const isOverLimit = charCount > 100000;
 
@@ -38,14 +40,24 @@ export const DatabaseInput: React.FC<Props> = ({ databaseText, setDatabaseText, 
         </div>
       </div>
 
-      <button 
-        onClick={handleGenerateStructure}
-        disabled={isGenerating || !mainKeyword}
-        className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white font-bold rounded-lg shadow-md hover:from-emerald-700 hover:to-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center gap-2 items-center transition-all active:scale-[0.98]"
-      >
-        {isGenerating ? <RefreshCw className="animate-spin" size={18}/> : <FileText size={18}/>}
-        構成案を作成
-      </button>
+      {isStructuring ? (
+        <button
+          onClick={stopGenerateStructure}
+          className="w-full py-3.5 bg-gradient-to-r from-red-500 to-red-600 text-white font-bold rounded-lg shadow-md hover:from-red-600 hover:to-red-700 flex justify-center gap-2 items-center transition-all active:scale-[0.98]"
+        >
+          <Square size={16} fill="currentColor" />
+          停止（構成案の作成をやめる）
+        </button>
+      ) : (
+        <button
+          onClick={handleGenerateStructure}
+          disabled={isGenerating || !mainKeyword}
+          className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white font-bold rounded-lg shadow-md hover:from-emerald-700 hover:to-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center gap-2 items-center transition-all active:scale-[0.98]"
+        >
+          {isGenerating ? <RefreshCw className="animate-spin" size={18} /> : <FileText size={18} />}
+          構成案を作成
+        </button>
+      )}
     </>
   );
 };

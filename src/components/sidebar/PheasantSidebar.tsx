@@ -33,6 +33,8 @@ type Props = {
   databaseText: string;
   setDatabaseText: (s: string) => void;
   handleGenerateStructure: () => void;
+  stopGenerateStructure: () => void;
+  isStructuring: boolean;
   isGenerating: boolean;
   clearAll: () => void;
   mediaType: string;
@@ -91,6 +93,8 @@ export const PheasantSidebar: React.FC<Props> = (props) => {
             databaseText={props.databaseText}
             setDatabaseText={props.setDatabaseText}
             handleGenerateStructure={props.handleGenerateStructure}
+            stopGenerateStructure={props.stopGenerateStructure}
+            isStructuring={props.isStructuring}
             isGenerating={props.isGenerating}
             mainKeyword={props.mainKeyword}
           />

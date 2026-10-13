@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initGemini, generateStructure, generateSectionContent, checkArticle } from './lib/gemini';
 import type { CheckItem } from './lib/articleCheck';
 import Papa from 'papaparse';
@@ -47,6 +47,8 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
   const [checkResults, setCheckResults] = useState<CheckItem[] | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [isStructuring, setIsStructuring] = useState(false);
+  const structureAbortRef = useRef<AbortController | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [writingIndex, setWritingIndex] = useState<number | null>(null);
   const [isPolishing, setIsPolishing] = useState(false);
@@ -209,17 +211,29 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
 
   const handleGenerateStructure = async () => {
     if (apiStatus !== 'ok') return toast.error('API接続を確認してください');
+    const controller = new AbortController();
+    structureAbortRef.current = controller;
     setIsGenerating(true);
+    setIsStructuring(true);
     try {
-      const result = await generateStructure(mainKeyword, subKeywords.slice(0, 20), databaseText, mediaType, design);
+      const result = await generateStructure(mainKeyword, subKeywords.slice(0, 20), databaseText, mediaType, design, controller.signal);
+      // 停止ボタンが押された後に結果が届いても、画面には反映しない
+      if (controller.signal.aborted) throw new DOMException('aborted', 'AbortError');
       setStructure(result.structure);
-      setCheckResults(null);
       setMeta({ metaDescription: result.meta_description, keyPoints: result.key_points, conclusion: result.conclusion });
+      setCheckResults(null);
       toast.success('構成案完成');
     } catch {
-      toast.error('生成失敗');
+      if (controller.signal.aborted) toast('構成案の作成を止めました', { icon: '⏹️' });
+      else toast.error('生成失敗');
     }
+    structureAbortRef.current = null;
+    setIsStructuring(false);
     setIsGenerating(false);
+  };
+
+  const stopGenerateStructure = () => {
+    structureAbortRef.current?.abort();
   };
 
   // 「書いた」「書かない」キーワードなら、構成案を作る前に確認する（近い記事の黄色表示だけなら確認しない）
@@ -362,7 +376,7 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
         />
       )}
       <PheasantSidebar 
-        {...{apiStatus, apiKey, setApiKey, checkApiConnection, handleFileUpload, presets, loadPreset, newPresetName, setNewPresetName, newPresetUrl, setNewPresetUrl, savePreset, mainKeyword, setMainKeyword, subKeywords, cannibalAlerts, activeSheetSources, reloadSheetSource, removeSheetSource, databaseText, setDatabaseText, handleGenerateStructure: requestGenerateStructure, isGenerating, clearAll, mediaType, setMediaType, design, setDesign, onLogout}} 
+        {...{apiStatus, apiKey, setApiKey, checkApiConnection, handleFileUpload, presets, loadPreset, newPresetName, setNewPresetName, newPresetUrl, setNewPresetUrl, savePreset, mainKeyword, setMainKeyword, subKeywords, cannibalAlerts, activeSheetSources, reloadSheetSource, removeSheetSource, databaseText, setDatabaseText, handleGenerateStructure: requestGenerateStructure, stopGenerateStructure, isStructuring, isGenerating, clearAll, mediaType, setMediaType, design, setDesign, onLogout}} 
       />
       <PheasantEditor 
         {...{structure, setStructure, handleWriteSection, handleWriteAllSections, handlePolishWholeArticle, isGenerating, isPolishing, writingIndex, mainKeyword, meta, handleCheckArticle, isChecking, checkResults, closeCheckResults: () => setCheckResults(null)}} 
