@@ -1,6 +1,7 @@
 import React from 'react';
 import { AlertTriangle } from 'lucide-react';
 import type { CannibalAlert } from '../../lib/cannibal';
+import { isPlanned } from '../../lib/cannibal';
 
 type Props = {
   mediaType: string;
@@ -12,10 +13,11 @@ type Props = {
 };
 
 export const KeywordSettings: React.FC<Props> = (props) => {
-  const hasWritten = props.cannibalAlerts.some((a) => a.level === 'written');
+  const hasWritten = props.cannibalAlerts.some((a) => a.level === 'written' && !isPlanned(a));
   const skips = props.cannibalAlerts.filter((a) => a.level === 'skip');
   const nears = props.cannibalAlerts.filter((a) => a.level === 'near');
-  const writtens = props.cannibalAlerts.filter((a) => a.level === 'written');
+  const writtens = props.cannibalAlerts.filter((a) => a.level === 'written' && !isPlanned(a));
+  const planneds = props.cannibalAlerts.filter(isPlanned);
 
   return (
     <>
@@ -43,6 +45,11 @@ export const KeywordSettings: React.FC<Props> = (props) => {
         {writtens.map((a, i) => (
           <div key={`w${i}`} className="text-red-500 text-xs mt-1.5 flex gap-1 font-bold animate-pulse">
             <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" /> 🔴 既に記事があります：「{a.keyword}」（{a.label}／{a.source}）
+          </div>
+        ))}
+        {planneds.map((a, i) => (
+          <div key={`p${i}`} className="text-amber-600 text-xs mt-1.5 flex gap-1 font-bold">
+            <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" /> 🟡 既に書く予定になっています：「{a.keyword}」（{a.source}）
           </div>
         ))}
         {skips.map((a, i) => (

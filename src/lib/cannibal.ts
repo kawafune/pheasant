@@ -10,6 +10,10 @@ export interface CannibalAlert {
   source: string; // どのシートか
 }
 
+// 「書く予定」（まだ書いていないが予定に入っている）かどうか。表示の文言を変えるために使う
+export const isPlanned = (alert: CannibalAlert): boolean =>
+  alert.level === 'written' && /^書く(予定)?/.test(alert.label.normalize('NFKC').trim());
+
 // 全角半角・大文字小文字・スペース・記号の違いをならす
 const normalize = (s: string): string =>
   s.normalize('NFKC').toLowerCase().replace(/[\s・、。,.\-_+＋/／]+/g, '');
