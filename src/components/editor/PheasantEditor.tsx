@@ -23,6 +23,8 @@ type Props = {
   setStructure: (s: StructureItemData[]) => void;
   handleWriteSection: (index: number) => void;
   handleWriteAllSections: () => void;
+  stopWriteAllSections: () => void;
+  isBatchWriting: boolean;
   handlePolishWholeArticle: () => void;
   isGenerating: boolean;
   isPolishing: boolean;
@@ -35,7 +37,7 @@ type Props = {
   closeCheckResults: () => void;
 };
 
-export const PheasantEditor: React.FC<Props> = ({ structure, setStructure, handleWriteSection, handleWriteAllSections, handlePolishWholeArticle, isGenerating, isPolishing, writingIndex, mainKeyword, meta, handleCheckArticle, isChecking, checkResults, closeCheckResults }) => {
+export const PheasantEditor: React.FC<Props> = ({ structure, setStructure, handleWriteSection, handleWriteAllSections, stopWriteAllSections, isBatchWriting, handlePolishWholeArticle, isGenerating, isPolishing, writingIndex, mainKeyword, meta, handleCheckArticle, isChecking, checkResults, closeCheckResults }) => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const todos = extractTodos(structure);
 
@@ -122,6 +124,8 @@ export const PheasantEditor: React.FC<Props> = ({ structure, setStructure, handl
             copyForWordPress={copyForWordPress} 
             copyAsPlainText={copyAsPlainText} 
             handleWriteAllSections={handleWriteAllSections}
+            stopWriteAllSections={stopWriteAllSections}
+            isBatchWriting={isBatchWriting}
             handlePolishWholeArticle={handlePolishWholeArticle}
             handleCheckArticle={handleCheckArticle}
             isChecking={isChecking}

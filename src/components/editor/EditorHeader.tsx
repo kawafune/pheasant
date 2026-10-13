@@ -1,10 +1,12 @@
 import React from 'react';
-import { Copy, FileDown, Zap, Archive, ClipboardCheck } from 'lucide-react';
+import { Copy, FileDown, Zap, Archive, ClipboardCheck, Square } from 'lucide-react';
 
 type Props = {
   copyForWordPress: () => void;
   copyAsPlainText: () => void;
   handleWriteAllSections: () => void;
+  stopWriteAllSections: () => void;
+  isBatchWriting: boolean;
   handlePolishWholeArticle: () => void;
   handleCheckArticle: () => void;
   isChecking: boolean;
@@ -13,7 +15,7 @@ type Props = {
   onOpenHistory: () => void;
 };
 
-export const EditorHeader: React.FC<Props> = ({ copyForWordPress, copyAsPlainText, handleWriteAllSections, handlePolishWholeArticle, handleCheckArticle, isChecking, isGenerating, isPolishing, onOpenHistory }) => {
+export const EditorHeader: React.FC<Props> = ({ copyForWordPress, copyAsPlainText, handleWriteAllSections, stopWriteAllSections, isBatchWriting, handlePolishWholeArticle, handleCheckArticle, isChecking, isGenerating, isPolishing, onOpenHistory }) => {
   return (
     <div className="sticky top-0 z-10 pt-2 pb-4 mb-6" style={{ background: 'linear-gradient(to bottom, #f8f6f1 80%, transparent)' }}>
       {/* 和綴じ本風ヘッダー */}
@@ -30,13 +32,22 @@ export const EditorHeader: React.FC<Props> = ({ copyForWordPress, copyAsPlainTex
           </div>
           
           <div className="flex gap-2 flex-wrap justify-end">
-            <button 
-              onClick={handleWriteAllSections}
-              disabled={isGenerating || isPolishing}
-              className="bg-gradient-to-r from-emerald-500 to-emerald-600 text-white px-4 py-2 rounded-md shadow-sm hover:from-emerald-600 hover:to-emerald-700 font-bold flex items-center gap-2 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed text-sm"
-            >
-              <Zap size={14} /> 一括執筆
-            </button>
+            {isBatchWriting ? (
+              <button
+                onClick={stopWriteAllSections}
+                className="bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2 rounded-md shadow-sm hover:from-red-600 hover:to-red-700 font-bold flex items-center gap-2 transition-all active:scale-95 text-sm"
+              >
+                <Square size={13} fill="currentColor" /> 停止
+              </button>
+            ) : (
+              <button
+                onClick={handleWriteAllSections}
+                disabled={isGenerating || isPolishing}
+                className="bg-gradient-to-r from-emerald-500 to-emerald-600 text-white px-4 py-2 rounded-md shadow-sm hover:from-emerald-600 hover:to-emerald-700 font-bold flex items-center gap-2 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed text-sm"
+              >
+                <Zap size={14} /> 一括執筆
+              </button>
+            )}
             <button 
               onClick={handlePolishWholeArticle}
               disabled={isGenerating || isPolishing}

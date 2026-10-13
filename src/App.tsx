@@ -49,6 +49,8 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [isStructuring, setIsStructuring] = useState(false);
   const structureAbortRef = useRef<AbortController | null>(null);
+  const [isBatchWriting, setIsBatchWriting] = useState(false);
+  const batchAbortRef = useRef<AbortController | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [writingIndex, setWritingIndex] = useState<number | null>(null);
   const [isPolishing, setIsPolishing] = useState(false);
@@ -280,10 +282,15 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
       return;
     }
 
+    const controller = new AbortController();
+    batchAbortRef.current = controller;
     setIsGenerating(true);
+    setIsBatchWriting(true);
     const toastId = toast.loading(`一括執筆開始... (0/${unwrittenIndices.length})`);
+    let doneCount = 0;
 
     for (let i = 0; i < unwrittenIndices.length; i++) {
+      if (controller.signal.aborted) break;
       const idx = unwrittenIndices[i];
       setWritingIndex(idx);
       toast.loading(`一括執筆中... (${i + 1}/${unwrittenIndices.length}) 「${structure[idx].text}」`, { id: toastId });
@@ -291,25 +298,44 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
       try {
         const item = structure[idx];
         const isLast = idx === structure.length - 1;
-        const content = await generateSectionContent({ sectionTitle: item.text, mainKeyword, mediaType, sectionTag: item.tag, isLast, index: idx, structure, databaseText, design, meta });
+        const content = await generateSectionContent({ sectionTitle: item.text, mainKeyword, mediaType, sectionTag: item.tag, isLast, index: idx, structure, databaseText, design, meta, signal: controller.signal });
+        // 停止ボタンが押された後に届いた結果は、画面に反映しない
+        if (controller.signal.aborted) break;
         setStructure(prev => {
           const newS = [...prev];
           newS[idx] = { ...newS[idx], content };
           return newS;
         });
+        doneCount++;
       } catch {
+        if (controller.signal.aborted) break;
         toast.error(`「${structure[idx].text}」の執筆に失敗`);
       }
 
       // 最後のセクション以外は2秒間の待機（API負荷軽減）
+      // （待機中に停止ボタンが押されたら、すぐに抜ける）
       if (i < unwrittenIndices.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise<void>(resolve => {
+          const timer = setTimeout(resolve, 2000);
+          controller.signal.addEventListener('abort', () => { clearTimeout(timer); resolve(); }, { once: true });
+        });
       }
     }
 
+    const stopped = controller.signal.aborted;
+    batchAbortRef.current = null;
     setWritingIndex(null);
+    setIsBatchWriting(false);
     setIsGenerating(false);
-    toast.success('全セクションの一括執筆が完了しました！', { id: toastId });
+    if (stopped) {
+      toast(`一括執筆を止めました（${doneCount}/${unwrittenIndices.length}件まで完了）`, { id: toastId, icon: '⏹️', duration: 6000 });
+    } else {
+      toast.success('全セクションの一括執筆が完了しました！', { id: toastId });
+    }
+  };
+
+  const stopWriteAllSections = () => {
+    batchAbortRef.current?.abort();
   };
 
   const handlePolishWholeArticle = async () => {
@@ -379,7 +405,7 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
         {...{apiStatus, apiKey, setApiKey, checkApiConnection, handleFileUpload, presets, loadPreset, newPresetName, setNewPresetName, newPresetUrl, setNewPresetUrl, savePreset, mainKeyword, setMainKeyword, subKeywords, cannibalAlerts, activeSheetSources, reloadSheetSource, removeSheetSource, databaseText, setDatabaseText, handleGenerateStructure: requestGenerateStructure, stopGenerateStructure, isStructuring, isGenerating, clearAll, mediaType, setMediaType, design, setDesign, onLogout}} 
       />
       <PheasantEditor 
-        {...{structure, setStructure, handleWriteSection, handleWriteAllSections, handlePolishWholeArticle, isGenerating, isPolishing, writingIndex, mainKeyword, meta, handleCheckArticle, isChecking, checkResults, closeCheckResults: () => setCheckResults(null)}} 
+        {...{structure, setStructure, handleWriteSection, handleWriteAllSections, stopWriteAllSections, isBatchWriting, handlePolishWholeArticle, isGenerating, isPolishing, writingIndex, mainKeyword, meta, handleCheckArticle, isChecking, checkResults, closeCheckResults: () => setCheckResults(null)}} 
       />
     </div>
   );

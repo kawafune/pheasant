@@ -124,10 +124,11 @@ export interface SectionParams {
   databaseText: string; // 参考データ（一次情報）
   design?: ArticleDesign;
   meta?: ArticleMeta;
+  signal?: AbortSignal; // 一括執筆の停止用
 }
 
 export const generateSectionContent = async (params: SectionParams) => {
-  const { sectionTitle, mainKeyword, mediaType, sectionTag, isLast, index, structure, databaseText, design, meta } = params;
+  const { sectionTitle, mainKeyword, mediaType, sectionTag, isLast, index, structure, databaseText, design, meta, signal } = params;
   if (!genAI) throw new Error("API Key not set");
   const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
@@ -232,7 +233,7 @@ export const generateSectionContent = async (params: SectionParams) => {
     designText,
     `# 参考データ（一次情報）\n${databaseText.substring(0, 100000) || '（参考データなし）'}`,
   ].filter(Boolean).join('\n\n');
-  const result = await model.generateContent([SYSTEM_PROMPT, prompt]);
+  const result = await model.generateContent([SYSTEM_PROMPT, prompt], { signal });
   return result.response.text();
 };
 
