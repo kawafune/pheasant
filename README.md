@@ -77,3 +77,9 @@ export default defineConfig([
 1. Notion「SEO_Master_Logic」を更新する
 2. Claude が `seo-rules.md` を作り直す
 3. `src/lib/seo-rules.md` をそのファイルに差し替える
+
+## ログイン（合言葉）の変更方法
+
+1. `node scripts/hash-passcode.mjs 新しい合言葉` を実行する
+2. 出力されたハッシュを `src/lib/auth.ts` の `PASSCODE_HASH` に貼り替える
+3. コミットして push する（変更後は全員が再ログインになる）

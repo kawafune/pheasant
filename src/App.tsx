@@ -1,20 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { SignedIn, SignedOut, SignIn, UserButton, useUser } from "@clerk/clerk-react";
 import { initGemini, generateStructure, generateSectionContent, checkArticle } from './lib/gemini';
 import type { CheckItem } from './lib/articleCheck';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { Toaster, toast } from 'react-hot-toast';
-import { Lock, ShieldAlert } from 'lucide-react';
 import { PheasantSidebar } from './components/sidebar/PheasantSidebar';
 import { PheasantEditor } from './components/editor/PheasantEditor';
+import { LoginGate } from './components/LoginGate';
+import { isLoggedIn, logout } from './lib/auth';
 import { DESIGN_STORAGE_KEY, EMPTY_DESIGN, EMPTY_META, META_STORAGE_KEY, normalizeDesign, normalizeMeta } from './lib/articleDesign';
 import type { ArticleDesign, ArticleMeta } from './lib/articleDesign';
-
-const ALLOWED_EMAILS = [
-  "ark6122of.eins@gmail.com",
-  "kiirou.7@gmail.com",
-];
 
 interface StructureItem {
   tag: 'h1' | 'h2' | 'h3';
@@ -29,7 +24,7 @@ interface Preset {
   url: string;
 }
 
-function PheasantTool() {
+function PheasantTool({ onLogout }: { onLogout: () => void }) {
   const loadState = <T,>(key: string, defaultVal: T): T => {
     const saved = localStorage.getItem(key);
     if (!saved) return defaultVal;
@@ -290,7 +285,7 @@ function PheasantTool() {
     <div className="min-h-screen flex bg-stone-50 text-slate-800" style={{ fontFamily: "'Noto Sans JP', sans-serif" }}>
       <Toaster position="top-right" />
       <PheasantSidebar 
-        {...{apiStatus, apiKey, setApiKey, checkApiConnection, handleFileUpload, presets, loadPreset, newPresetName, setNewPresetName, newPresetUrl, setNewPresetUrl, savePreset, mainKeyword, setMainKeyword, subKeywords, cannibalAlert, databaseText, setDatabaseText, handleGenerateStructure, isGenerating, clearAll, mediaType, setMediaType, design, setDesign}} 
+        {...{apiStatus, apiKey, setApiKey, checkApiConnection, handleFileUpload, presets, loadPreset, newPresetName, setNewPresetName, newPresetUrl, setNewPresetUrl, savePreset, mainKeyword, setMainKeyword, subKeywords, cannibalAlert, databaseText, setDatabaseText, handleGenerateStructure, isGenerating, clearAll, mediaType, setMediaType, design, setDesign, onLogout}} 
       />
       <PheasantEditor 
         {...{structure, setStructure, handleWriteSection, handleWriteAllSections, handlePolishWholeArticle, isGenerating, isPolishing, writingIndex, mainKeyword, meta, handleCheckArticle, isChecking, checkResults, closeCheckResults: () => setCheckResults(null)}} 
@@ -299,59 +294,17 @@ function PheasantTool() {
   );
 }
 
-function ProtectedApp() {
-  const { user, isLoaded } = useUser();
-  if (!isLoaded) return (
-    <div className="min-h-screen flex items-center justify-center bg-stone-50">
-      <div className="text-slate-400 text-sm">読み込み中...</div>
-    </div>
-  );
-  const userEmail = user?.primaryEmailAddress?.emailAddress;
-  const isAllowed = ALLOWED_EMAILS.length === 0 || (userEmail && ALLOWED_EMAILS.includes(userEmail));
-  if (!isAllowed) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-stone-50 bg-asanoha p-4">
-        <div className="bg-white p-8 rounded-xl shadow-watoji text-center max-w-md border border-slate-200">
-          <ShieldAlert size={48} className="text-red-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-slate-800 mb-2" style={{ fontFamily: "'Noto Serif JP', serif" }}>権限がありません</h1>
-          <p className="text-slate-500 mb-6 text-sm">アカウント ({userEmail}) は許可されていません。</p>
-          <UserButton />
-        </div>
-      </div>
-    );
-  }
-  return <PheasantTool />;
-}
-
 export default function App() {
+  const [authed, setAuthed] = useState(() => isLoggedIn());
+
+  if (!authed) return <LoginGate onSuccess={() => setAuthed(true)} />;
+
   return (
-    <div className="min-h-screen bg-stone-50">
-      <SignedIn><ProtectedApp /></SignedIn>
-      <SignedOut>
-        <div className="flex flex-col items-center justify-center min-h-screen bg-stone-50 bg-asanoha">
-          {/* ログインカード */}
-          <div className="bg-white p-10 rounded-2xl shadow-watoji text-center max-w-md w-full border border-slate-200 relative overflow-hidden">
-            {/* 上部装飾ライン */}
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-700"></div>
-            
-            <div className="mb-6 flex justify-center">
-              <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 p-4 rounded-xl shadow-lg">
-                <Lock size={36} className="text-white" />
-              </div>
-            </div>
-            <h1 className="text-3xl font-bold text-slate-800 mb-1" style={{ fontFamily: "'Noto Serif JP', serif" }}>
-              <span className="text-emerald-700">Pheasant</span>
-            </h1>
-            <p className="text-slate-400 mb-8 text-sm tracking-wider">PROFESSIONAL WRITERS ONLY</p>
-            <div className="flex justify-center"><SignIn /></div>
-            
-            {/* 下部装飾 */}
-            <div className="mt-8 pt-4 border-t border-slate-100">
-              <p className="text-[10px] text-slate-300 tracking-widest">SEO WRITING SYSTEM V1.1</p>
-            </div>
-          </div>
-        </div>
-      </SignedOut>
-    </div>
+    <PheasantTool
+      onLogout={() => {
+        logout();
+        setAuthed(false);
+      }}
+    />
   );
 }

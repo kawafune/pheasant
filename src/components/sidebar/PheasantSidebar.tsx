@@ -1,5 +1,5 @@
 import React from 'react';
-import { UserButton } from "@clerk/clerk-react";
+import { LogOut } from 'lucide-react';
 import { SidebarHeader } from './SidebarHeader';
 import { ApiKeySection } from './ApiKeySection';
 import { DataUploader } from './DataUploader';
@@ -34,6 +34,7 @@ type Props = {
   setMediaType: (s: string) => void;
   design: ArticleDesign;
   setDesign: (d: ArticleDesign) => void;
+  onLogout: () => void;
 };
 
 export const PheasantSidebar: React.FC<Props> = (props) => {
@@ -90,7 +91,9 @@ export const PheasantSidebar: React.FC<Props> = (props) => {
       
       {/* フッター */}
       <div className="px-5 py-3 border-t border-slate-200 bg-white/50 text-xs text-slate-400 flex items-center justify-between">
-        <UserButton showName />
+        <button onClick={props.onLogout} className="flex items-center gap-1.5 hover:text-slate-600 transition">
+          <LogOut size={14} /> ログアウト
+        </button>
         <span className="text-[10px] tracking-wider opacity-50">PHEASANT</span>
       </div>
     </aside>
