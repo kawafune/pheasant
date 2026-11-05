@@ -15,7 +15,7 @@ export const ApiKeySection: React.FC<Props> = ({ apiKey, setApiKey, checkApiConn
         <input 
           type="password" 
           value={apiKey} 
-          onChange={(e) => setApiKey(e.target.value)}
+          onChange={(e) => setApiKey(e.target.value.replace(/[\s\u200B-\u200D\uFEFF]/g, ''))}
           className="w-full p-2.5 text-sm border border-slate-200 rounded-md bg-white text-slate-800 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30 transition placeholder:text-slate-300"
           placeholder="APIキーを入力（自動保存）"
         />

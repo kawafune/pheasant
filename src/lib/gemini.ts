@@ -8,7 +8,13 @@ import type { ArticleDesign, ArticleMeta } from './articleDesign';
 
 let genAI: GoogleGenerativeAI | null = null;
 
-export type GeminiInitResult = { ok: true } | { ok: false; reason: string };
+export type GeminiInitResult = { ok: true } | { ok: false; reason: string; detail: string };
+
+// APIキーから、貼り付けで紛れ込みやすい空白・改行・見えない文字を取り除く
+export const sanitizeApiKey = (key: string): string => key.replace(/[\s\u200B-\u200D\uFEFF]/g, '');
+
+// エラー文から、キーらしき文字列を伏せる（画面に詳細を出すため）
+const redact = (text: string): string => text.replace(/AIza[0-9A-Za-z_-]{10,}/g, 'AIza…（伏せ字）').replace(/key=[^&\s]+/g, 'key=…');
 
 // 接続の失敗を、原因が分かる日本語に直す（APIキーそのものは含めない）
 const explainGeminiError = (e: unknown): string => {
@@ -21,19 +27,30 @@ const explainGeminiError = (e: unknown): string => {
   if (status === 404) return 'モデルが見つかりません（404）。モデル名の変更の可能性があります';
   if (status === 429) return '利用上限（クォータ）に達しています。時間をおくか、Google AI Studio で利用状況を確認してください';
   if (status && status >= 500) return `Google側で一時的な問題が起きています（${status}）。少し待ってもう一度お試しください`;
-  if (/fetch|network|Failed to/i.test(msg)) return 'ネットワークに接続できません。通信環境を確認してください';
-  return '接続に失敗しました（原因を特定できませんでした）';
+  // キーに全角文字などが入っていると、ブラウザが送信前に止める
+  if (/ISO-8859-1|Invalid character|Invalid value|non ISO/i.test(msg)) return 'APIキーに使えない文字（全角文字など）が含まれています。キーを貼り直してください';
+  // 返事が一度も届いていない（拡張機能・ネットワーク制限・オフライン）
+  if (/Failed to fetch|NetworkError|Load failed|network/i.test(msg)) {
+    return 'Google（Gemini）のサーバーに届きませんでした。広告ブロッカーなどの拡張機能や、社内・公共Wi-Fiの制限が原因のことがあります。拡張機能を止めるか、別のネットワークでお試しください';
+  }
+  return '接続に失敗しました（原因を特定できませんでした）。下の「詳細」を教えてください';
 };
 
 export const initGemini = async (apiKey: string): Promise<GeminiInitResult> => {
+  const key = sanitizeApiKey(apiKey);
+  if (!/^[\x21-\x7E]+$/.test(key)) {
+    return { ok: false, reason: 'APIキーに使えない文字（全角文字など）が含まれています。キーを貼り直してください', detail: '' };
+  }
   try {
-    genAI = new GoogleGenerativeAI(apiKey);
+    genAI = new GoogleGenerativeAI(key);
     // 安定稼働している最新モデルに固定
     const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
     await model.generateContent("test");
     return { ok: true };
   } catch (e) {
-    return { ok: false, reason: explainGeminiError(e) };
+    const detail = redact(String((e as { message?: string })?.message ?? e)).slice(0, 300);
+    console.error('[Pheasant] Gemini接続エラー:', detail);
+    return { ok: false, reason: explainGeminiError(e), detail };
   }
 };
 

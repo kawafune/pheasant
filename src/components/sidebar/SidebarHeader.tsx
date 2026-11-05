@@ -4,10 +4,11 @@ import { Trash2 } from 'lucide-react';
 type Props = {
   apiStatus: 'idle' | 'ok' | 'error';
   apiError: string;
+  apiErrorDetail: string;
   clearAll: () => void;
 };
 
-export const SidebarHeader: React.FC<Props> = ({ apiStatus, apiError, clearAll }) => {
+export const SidebarHeader: React.FC<Props> = ({ apiStatus, apiError, apiErrorDetail, clearAll }) => {
   return (
     <div className="mb-6">
       {/* ロゴエリア */}
@@ -43,6 +44,9 @@ export const SidebarHeader: React.FC<Props> = ({ apiStatus, apiError, clearAll }
       </div>
       {apiStatus === 'error' && apiError && (
         <p className="mt-1.5 text-[11px] leading-relaxed text-red-600">{apiError}</p>
+      )}
+      {apiStatus === 'error' && apiErrorDetail && (
+        <p className="mt-1 text-[10px] leading-relaxed text-slate-400 break-all">詳細：{apiErrorDetail}</p>
       )}
     </div>
   );
