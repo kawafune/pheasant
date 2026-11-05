@@ -1,4 +1,5 @@
 // 出力前の点検（seo-rules.md §7）のうち、AIを使わずコードで確認する部分。
+import { KURAMIKKE_KEY, hasKuramikkeDisclaimer } from './mediaProfiles';
 
 export type CheckStatus = 'ok' | 'warn';
 
@@ -28,6 +29,21 @@ export const NG_PHRASES = [
   '予防',
 ] as const;
 
+// クラミッケ（健康・介護・終活）で追加するNG語句。診断・断定・煽り・金銭的な痛みにつながる表現
+export const KURAMIKKE_NG_PHRASES = [
+  '診断します',
+  '診断できます',
+  '完治',
+  '確実に',
+  '絶対',
+  '間違いなく',
+  '今だけ',
+  '放置すると',
+  '損をする',
+  '損します',
+  '儲かる',
+] as const;
+
 export const H1_MIN = 28;
 export const H1_MAX = 40;
 
@@ -46,12 +62,12 @@ export const checkH1Length = (structure: ArticleSection[]): CheckItem => {
   };
 };
 
-export const checkNgPhrases = (structure: ArticleSection[]): CheckItem => {
+export const checkNgPhrases = (structure: ArticleSection[], extraPhrases: readonly string[] = []): CheckItem => {
   const label = 'NG表現（§5）が含まれていない';
   const hits: string[] = [];
   structure.forEach((s) => {
     const body = `${s.text}\n${s.content ?? ''}`;
-    NG_PHRASES.forEach((phrase) => {
+    [...NG_PHRASES, ...extraPhrases].forEach((phrase) => {
       if (body.includes(phrase)) hits.push(`「${phrase}」（${s.tag.toUpperCase()}：${s.text}）`);
     });
   });
@@ -66,10 +82,28 @@ export const checkNgPhrases = (structure: ArticleSection[]): CheckItem => {
       };
 };
 
-export const runCodeChecks = (structure: ArticleSection[]): CheckItem[] => [
-  checkH1Length(structure),
-  checkNgPhrases(structure),
-];
+// クラミッケ：最後のセクションに免責文が入っているか
+export const checkKuramikkeDisclaimer = (structure: ArticleSection[]): CheckItem => {
+  const label = '免責文が記事の最後に入っている';
+  const last = structure[structure.length - 1];
+  const ok = !!last?.content && hasKuramikkeDisclaimer(last.content);
+  return {
+    id: 'disclaimer',
+    label,
+    status: ok ? 'ok' : 'warn',
+    reason: ok ? '入っています' : '最後のセクションに免責文がありません（まとめを書き直すと自動で付きます）',
+    source: 'code',
+  };
+};
+
+export const runCodeChecks = (structure: ArticleSection[], mediaKey: string = 'default'): CheckItem[] => {
+  const isKuramikke = mediaKey === KURAMIKKE_KEY;
+  return [
+    checkH1Length(structure),
+    checkNgPhrases(structure, isKuramikke ? KURAMIKKE_NG_PHRASES : []),
+    ...(isKuramikke ? [checkKuramikkeDisclaimer(structure)] : []),
+  ];
+};
 
 // 本文に残っている「人が対応するところ」（【要確認…】と【リンク…】）を拾う。AIは使わない。
 export type TodoKind = 'confirm' | 'link';

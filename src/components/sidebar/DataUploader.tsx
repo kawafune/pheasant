@@ -13,6 +13,7 @@ type Props = {
   newPresetUrl: string;
   setNewPresetUrl: (s: string) => void;
   savePreset: () => void;
+  fileInputKey: number;
   activeSheetSources: [string, SheetSource][];
   reloadSheetSource: (key: string) => void;
   removeSheetSource: (key: string) => void;
@@ -31,6 +32,7 @@ export const DataUploader: React.FC<Props> = (props) => {
       <div>
         <label className="block text-[11px] text-slate-500 mb-1.5 font-semibold">Dokusou (CSV/Excel)</label>
         <input 
+          key={props.fileInputKey}
           type="file" 
           accept=".csv, .xlsx" 
           onChange={(e) => props.handleFileUpload(e, 'dokusou')} 

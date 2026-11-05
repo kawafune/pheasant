@@ -1,4 +1,5 @@
 import React from 'react';
+import { Trash2 } from 'lucide-react';
 
 type Props = {
   apiStatus: 'idle' | 'ok' | 'error';
@@ -21,8 +22,8 @@ export const SidebarHeader: React.FC<Props> = ({ apiStatus, clearAll }) => {
             <span className="text-[10px] text-slate-400 tracking-widest">SEO WRITING SYSTEM V1.1</span>
           </div>
         </div>
-        <button onClick={clearAll} className="text-[10px] text-slate-400 hover:text-red-500 border border-slate-200 px-2 py-1 rounded hover:border-red-300 transition-colors">
-          リセット
+        <button onClick={clearAll} title="入力した内容と、作った構成・本文をすべて消します" className="flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-red-600 border border-slate-300 px-2.5 py-1.5 rounded-md hover:border-red-300 hover:bg-red-50 transition-colors">
+          <Trash2 size={12} /> すべて消す
         </button>
       </div>
 

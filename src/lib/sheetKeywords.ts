@@ -41,6 +41,7 @@ export const KNOWN_SHEETS: Record<string, KnownSheet> = {
   '1VsDKfWygfT-Yo2DKKlK8L7e7A_VGqohSnpDTWmF2yEk': { label: 'sumigi', gids: ['0', ARCHIVE_GID] },
   '1QvbykJ_H8oucsx904xux7B-FlQNQQdfMrjRwsq-uuJo': { label: 'タビノト。', gids: ['0', ARCHIVE_GID] },
   '1nBaDivRGpSDlJJMCba4Z_GYXho08BO92GiY4qngSR-Q': { label: 'cocci', gids: ['0'] },
+  '1n2ZaprjwZGItrkCJ52It2PnmXMRiFlA2ZbrquzsbDOg': { label: 'クラミッケ', gids: ['0'] },
 };
 
 // 掲載メディアを選んだときに自動で読み込むシート
@@ -48,6 +49,7 @@ export const SHEET_URL_BY_MEDIA: Record<string, string> = {
   sumigi: 'https://docs.google.com/spreadsheets/d/1VsDKfWygfT-Yo2DKKlK8L7e7A_VGqohSnpDTWmF2yEk/edit',
   tabinoto: 'https://docs.google.com/spreadsheets/d/1QvbykJ_H8oucsx904xux7B-FlQNQQdfMrjRwsq-uuJo/edit',
   cocci3: 'https://docs.google.com/spreadsheets/d/1nBaDivRGpSDlJJMCba4Z_GYXho08BO92GiY4qngSR-Q/edit',
+  kuramikke: 'https://docs.google.com/spreadsheets/d/1n2ZaprjwZGItrkCJ52It2PnmXMRiFlA2ZbrquzsbDOg/edit',
 };
 
 export interface ParsedSheetUrl {

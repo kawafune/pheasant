@@ -46,6 +46,7 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
   const [meta, setMeta] = useState<ArticleMeta>(() => normalizeMeta(loadState(META_STORAGE_KEY, EMPTY_META)));
   const [checkResults, setCheckResults] = useState<CheckItem[] | null>(null);
   const [isChecking, setIsChecking] = useState(false);
+  const [fileInputKey, setFileInputKey] = useState(0);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [isStructuring, setIsStructuring] = useState(false);
   const structureAbortRef = useRef<AbortController | null>(null);
@@ -381,10 +382,16 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
     setIsChecking(false);
   };
 
+  // 「すべて消す」: 入力した内容と、作った構成・本文を消す（APIキー・掲載メディア・シート連携・履歴は残す）
   const clearAll = () => {
-    if(!confirm("リセットしますか？")) return;
+    if (isGenerating || isPolishing || isChecking) {
+      toast.error('作成中は消せません。先に「停止」を押すか、終わるのを待ってください');
+      return;
+    }
+    if (!confirm('入力した内容と、作った構成・本文を、すべて消します。\n（APIキー・掲載メディア・シート連携・履歴は残ります）\nよろしいですか？')) return;
     setMainKeyword(''); setSubKeywords([]); setDatabaseText(''); setStructure([]); setDesign(EMPTY_DESIGN); setMeta(EMPTY_META); setCheckResults(null);
-    toast('リセットしました', { icon: '🧹' });
+    setFileInputKey(k => k + 1);
+    toast('すべて消しました', { icon: '🧹' });
   };
 
   return (
@@ -402,7 +409,7 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
         />
       )}
       <PheasantSidebar 
-        {...{apiStatus, apiKey, setApiKey, checkApiConnection, handleFileUpload, presets, loadPreset, newPresetName, setNewPresetName, newPresetUrl, setNewPresetUrl, savePreset, mainKeyword, setMainKeyword, subKeywords, cannibalAlerts, activeSheetSources, reloadSheetSource, removeSheetSource, databaseText, setDatabaseText, handleGenerateStructure: requestGenerateStructure, stopGenerateStructure, isStructuring, isGenerating, clearAll, mediaType, setMediaType, design, setDesign, onLogout}} 
+        {...{apiStatus, apiKey, setApiKey, checkApiConnection, handleFileUpload, presets, loadPreset, newPresetName, setNewPresetName, newPresetUrl, setNewPresetUrl, savePreset, mainKeyword, setMainKeyword, subKeywords, cannibalAlerts, activeSheetSources, reloadSheetSource, removeSheetSource, databaseText, setDatabaseText, handleGenerateStructure: requestGenerateStructure, stopGenerateStructure, isStructuring, isGenerating, clearAll, fileInputKey, mediaType, setMediaType, design, setDesign, onLogout}} 
       />
       <PheasantEditor 
         {...{structure, setStructure, handleWriteSection, handleWriteAllSections, stopWriteAllSections, isBatchWriting, handlePolishWholeArticle, isGenerating, isPolishing, writingIndex, mainKeyword, meta, handleCheckArticle, isChecking, checkResults, closeCheckResults: () => setCheckResults(null)}} 

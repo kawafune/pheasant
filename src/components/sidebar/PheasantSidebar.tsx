@@ -37,6 +37,7 @@ type Props = {
   isStructuring: boolean;
   isGenerating: boolean;
   clearAll: () => void;
+  fileInputKey: number;
   mediaType: string;
   setMediaType: (s: string) => void;
   design: ArticleDesign;
@@ -72,6 +73,7 @@ export const PheasantSidebar: React.FC<Props> = (props) => {
           newPresetUrl={props.newPresetUrl}
           setNewPresetUrl={props.setNewPresetUrl}
           savePreset={props.savePreset}
+          fileInputKey={props.fileInputKey}
           activeSheetSources={props.activeSheetSources}
           reloadSheetSource={props.reloadSheetSource}
           removeSheetSource={props.removeSheetSource}

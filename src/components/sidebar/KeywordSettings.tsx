@@ -32,6 +32,7 @@ export const KeywordSettings: React.FC<Props> = (props) => {
           <option value="tabinoto">タビノト。 (旅/叙情的)</option>
           <option value="sumigi">sumigi (伝統工芸/丁寧)</option>
           <option value="cocci3">cocci3 (ライフスタイル/軽やか)</option>
+          <option value="kuramikke">クラミッケ (健康・介護・終活/やさしく実用)</option>
         </select>
       </div>
 

@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import SEO_RULES from './seo-rules.md?raw';
 import { designToPromptText } from './articleDesign';
 import { runCodeChecks } from './articleCheck';
+import { KURAMIKKE_KEY, buildKuramikkeFooter, hasKuramikkeDisclaimer } from './mediaProfiles';
 import type { CheckItem } from './articleCheck';
 import type { ArticleDesign, ArticleMeta } from './articleDesign';
 
@@ -26,6 +27,7 @@ const MEDIA_RULE_KEY: Record<string, string> = {
   tabinoto: 'tabinoto',
   sumigi: 'sumigi',
   cocci3: 'cocci',
+  kuramikke: 'kuramikke',
 };
 
 // 3つの関数（構成・本文・推敲）のシステムプロンプト先頭に入れるルールブロック
@@ -61,6 +63,11 @@ export const generateStructure = async (
   if (!genAI) throw new Error("API Key not set");
   const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
+  // まとめ見出しの例。クラミッケは詩的にせず、次にやることが分かる見出しにする
+  const summaryExample = (MEDIA_RULE_KEY[mediaType] ?? 'default') === KURAMIKKE_KEY
+    ? '「まずは、お住まいの地域包括支援センターに相談してみましょう」のように、次にやることが分かる具体的な見出し。詩的・抽象的な見出しにしない'
+    : `「${mainKeyword}を暮らしに添える、小さな一歩」`;
+
   const SYSTEM_PROMPT = `
   ${buildRulesBlock(mediaType)}
   あなたは世界最高峰のSEO戦略家であり、Pheasantシステムの頭脳です。上記のルールと以下の【構成作成の掟】を厳守し、JSON構成を作成せよ。
@@ -71,7 +78,7 @@ export const generateStructure = async (
   3. [H2・H3の数]: 本論のH2は2つが基本。H3は検索意図に必要な分だけ（12個前後が目安。cocci・sumigiの短い記事はもっと少なくてよい）。サブKWは主にH3に使う。同じ質問になるKWは1つの見出しにまとめる。
   4. [見出しの形]: 見出しは短く、読者の「質問」の形を優先する。
   5. [情報増分 (Information Gain)]: 提供された参考データ（一次情報）から、独自の知見・職人の声・現地で困ったことなどを抽出し、必ず少なくとも1つ「H3」の見出しとして構成に組み込むこと。参考データにない固有名詞・数字を見出しに入れない。
-  6. [まとめ]: "structure" 配列の【一番最後の要素】は、記事を締めくくるH2（tag: "h2"）の「まとめ」見出しとする。メインKWを自然に含めること。「まとめ」「おわりに」だけの単調な見出しは避け、記事のテーマに沿った具体的でやわらかい見出しにする（例：「${mainKeyword}を暮らしに添える、小さな一歩」）。
+  6. [まとめ]: "structure" 配列の【一番最後の要素】は、記事を締めくくるH2（tag: "h2"）の「まとめ」見出しとする。メインKWを自然に含めること。「まとめ」「おわりに」だけの単調な見出しは避け、記事のテーマに沿った具体的でやわらかい見出しにする（例：${summaryExample}）。
   7. [結論に向ける]: 設計に「結論付けとスタンス」があれば、構成全体をその結論に向ける。なければ、参考データと検索意図から結論を一文で決めて、それに向ける。
   8. [並び]: h1 → h2 → h3群 → h2 → h3群 → h2(まとめ) の順にする。
 
@@ -137,6 +144,7 @@ export const generateSectionContent = async (params: SectionParams) => {
   const firstH2Index = structure.findIndex((it) => it.tag === 'h2');
   const isFirstH2 = sectionTag === 'h2' && index === firstH2Index && !isLast;
   const hasCashPoint = !!design?.cashPoint?.trim();
+  const isKuramikke = mediaKey === KURAMIKKE_KEY;
 
   // 字数：固定の上限は置かず、媒体ごとの目安だけ示す
   const lengthRule = isIntro
@@ -169,7 +177,7 @@ export const generateSectionContent = async (params: SectionParams) => {
      ③ この記事で分かること（メインKWと主要な見出し用KWを自然に含める。長くしすぎない）
      ④ 【記事のポイント】を箇条書き4つ${meta && meta.keyPoints.length > 0 ? `。次の4つをそのまま、または読みやすく整えて使う：\n${meta.keyPoints.map((k) => `        ・${k}`).join('\n')}` : '。構成と参考データから4つ作る'}
      ⑤ 【この記事の構成（全見出し）】を箇条書きでリストアップ
-     ⑥ リストの直後に「この記事が、少しでも心地よい暮らしのヒントになれば嬉しいです」といった温かい一文`
+     ⑥ リストの直後に${isKuramikke ? '「この記事が、気持ちを整理して、次の一歩を考えるきっかけになれば嬉しいです」といったやさしい一文' : '「この記事が、少しでも心地よい暮らしのヒントになれば嬉しいです」といった温かい一文'}`
     : isLast
       ? `0. 今回は「まとめ」を書く。
      - 見出しのコピペや、本文の単なる要約の繰り返しにしない。
@@ -178,25 +186,39 @@ export const generateSectionContent = async (params: SectionParams) => {
      - 【見出し直後の1〜2文で、その見出しの答えを先に書く】。詳細はその後に続ける。
      - 本文の型：主張 → 理由 → 具体例 →（必要なら）迷いや反論への理解 → もう一度主張。
      - 比較・手順・料金などは文章より箇条書きにする（行頭は「・」。表の記号やMarkdown記法は使わない）。
-     - 機械的な解説を避け、友人に温かいお茶を飲みながらおすすめを教えるようなトーンで展開する。
-     - 「お守りのような」「相棒」「ホッとする」「心地よい」といった、五感や感情に訴えかける柔らかな語彙を使う。`;
+${isKuramikke ? `     - 読者の不安に、最初の一言だけ寄り添う（必要なときだけ。何度も繰り返さない）。
+     - 専門用語は、初めて出るときにやさしい言葉で言い換える。
+     - 個別の判断が必要な話題（症状・契約・相続・税など）は、断定せず、誰に・どこに相談すればよいかを具体的に案内する。
+     - 手順・流れ・準備するものは箇条書きにして、「次に何をするか」が分かるように書く。` : `     - 機械的な解説を避け、友人に温かいお茶を飲みながらおすすめを教えるようなトーンで展開する。
+     - 「お守りのような」「相棒」「ホッとする」「心地よい」といった、五感や感情に訴えかける柔らかな語彙を使う。`}`;
 
   const sumigiRule = mediaKey === 'sumigi'
     ? '\n  - sumigi：seo-rules.md §5 の表現ルールを最も厳しく適用する。「治る」「防げる」「完全に除去」「必ず効果がある」「医学的に証明」「健康に効果」「改善する」「予防」は使わない。消臭・抗菌・調湿なども断定せず、「〜をサポートする機能」「使う環境で感じ方は変わります」の形にし、公開している試験結果を超える効果は書かない。'
     : '';
 
+  const confirmRules = isKuramikke
+    ? `  - 参考データに出典名やURLがある内容は、本文に出典名を書く（例：「厚生労働省の資料によると」）。URLは参考データにあるものだけを使い、作らない。
+  - 数字（費用・期間・割合・年齢など）、法律・制度の細かい内容、研究や論文、団体名、URLは、参考データにあるものだけを使う。ないものを作らない。論文・研究の名前・著者・年を創作しない。
+  - 参考データに根拠のない一般的な内容は書いてよい。ただし、その内容は【1文】または【1段落】に独立させ、文末に【要確認：確認先（例：厚生労働省の介護保険のページ）】を付ける。確認できなかった場合に、その文（段落）を丸ごと削除しても、前後が自然につながるように書く。
+  - 数字が必要なのに参考データにないときは、数字を書かず、「費用は地域や施設によって異なります【要確認：自治体の窓口で確認】」のように書く。
+  - 【要確認】は1セクションにつき3つまで。`
+    : `  - 価格・営業時間・仕様・キャンペーン・解約条件・メニュー・対応可否など、読者が損をしうる情報だけに、【要確認：確認する内容と確認先】の形で付ける（例：【要確認：営業時間を公式サイトで確認】）。確認先は、参考データに書かれた出どころ、または公式サイト・店頭など、人が調べられる場所を具体的に書く。
+  - 【要確認】は1セクションにつき多くても2つまで。上記以外の理由では付けない。【要確認】が付いた情報があっても、その前後の文章は読んで完成する形に書き切る（「確認が必要です」で文章を止めない）。
+  - 参考データに根拠がなく書けない内容は、【要確認】を付けず、書かない。参考データから言える範囲だけで、短くても自然に完結する文章にする（一般論や水増しで埋めない。足りない分は短くてよい）。`;
+
   const SYSTEM_PROMPT = `
   ${buildRulesBlock(mediaType)}
-  あなたは「${mediaType}」の専属プロライターです。
-  「北欧、暮らしの道具店」や「キナリノ」のような、読者の心に優しく寄り添う、体温のあるエッセイ風のトーン＆マナーで執筆してください。
+  ${isKuramikke
+    ? `あなたは「クラミッケ」（健康・介護・終活のメディア）の専属ライターです。
+  不安や心配を抱えた読者に寄り添う、やさしく落ち着いた文体で書いてください。ただし内容は詩的・曖昧にせず、読んで理解でき、次の行動に移せる具体的なものにします。`
+    : `あなたは「${mediaType}」の専属プロライターです。
+  「北欧、暮らしの道具店」や「キナリノ」のような、読者の心に優しく寄り添う、体温のあるエッセイ風のトーン＆マナーで執筆してください。`}
 
   # 事実と体験のルール（最重要・絶対厳守）
   - 根拠にしてよいのは、渡された「参考データ」と「記事の設計」だけ。データにない固有名詞・数字・料金・営業時間・仕様を作らない。
   - 体験として書いてよいのは、参考データに「運営者の体験」と明記されたものだけ。それ以外を、書き手自身が使った・行ったかのように書かない（「私が実際に〜した」と書かない）。
   - 参考データの他人の話は、出どころを書く（例：「取材先の○○さんによると」「口コミでは」）。
-  - 価格・営業時間・仕様・キャンペーン・解約条件・メニュー・対応可否など、読者が損をしうる情報だけに、【要確認：確認する内容と確認先】の形で付ける（例：【要確認：営業時間を公式サイトで確認】）。確認先は、参考データに書かれた出どころ、または公式サイト・店頭など、人が調べられる場所を具体的に書く。
-  - 【要確認】は1セクションにつき多くても2つまで。上記以外の理由では付けない。【要確認】が付いた情報があっても、その前後の文章は読んで完成する形に書き切る（「確認が必要です」で文章を止めない）。
-  - 参考データに根拠がなく書けない内容は、【要確認】を付けず、書かない。参考データから言える範囲だけで、短くても自然に完結する文章にする（一般論や水増しで埋めない。足りない分は短くてよい）。${sumigiRule}
+${confirmRules}${sumigiRule}
 
   # 文量
   ${lengthRule}
@@ -206,8 +228,9 @@ export const generateSectionContent = async (params: SectionParams) => {
   ${sectionRule}
 
   # 文体のルール
-  - 「〜です」「〜ます」の単調な連続を避ける。
-  - 「〜ですよね」「〜なんです」「〜かもしれません」「〜だなあと思います」といった、余韻を残す柔らかい語尾を適度にミックスする。
+${isKuramikke ? `  - 「〜です」「〜ます」を基本に、「〜かもしれません」「〜とされています」「〜ことがあります」など、断定しすぎないやわらかい言い方を使う。
+  - 詩的な比喩や、飾りの多い表現は避ける。` : `  - 「〜です」「〜ます」の単調な連続を避ける。
+  - 「〜ですよね」「〜なんです」「〜かもしれません」「〜だなあと思います」といった、余韻を残す柔らかい語尾を適度にミックスする。`}
   - 1文を長くしない。2〜3文ごとに段落（改行）を分ける。太字・マーカー等の装飾は使わない。
   - 前後の見出しと内容が重ならないようにする。
 
@@ -234,7 +257,12 @@ export const generateSectionContent = async (params: SectionParams) => {
     `# 参考データ（一次情報）\n${databaseText.substring(0, 100000) || '（参考データなし）'}`,
   ].filter(Boolean).join('\n\n');
   const result = await model.generateContent([SYSTEM_PROMPT, prompt], { signal });
-  return result.response.text();
+  const text = result.response.text();
+  // クラミッケ：まとめの最後に、免責文と情報の基準日をコードで付ける（AIには書かせない）
+  if (isKuramikke && isLast && !hasKuramikkeDisclaimer(text)) {
+    return `${text.trimEnd()}\n\n${buildKuramikkeFooter()}`;
+  }
+  return text;
 };
 
 // --- 記事全体の推敲（重複調整）ロジック ---
@@ -248,6 +276,7 @@ export const polishWholeArticle = async (structure: StructureForPolish[], mainKe
   if (!genAI) throw new Error("API Key not set");
   const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
   const mediaKey = MEDIA_RULE_KEY[mediaType] ?? 'default';
+  const isKuramikke = mediaKey === KURAMIKKE_KEY;
 
   const SYSTEM_PROMPT = `
   ${buildRulesBlock(mediaType)}
@@ -258,11 +287,13 @@ export const polishWholeArticle = async (structure: StructureForPolish[], mainKe
   1. [重複排除]: 各見出し間で「同じ単語の多用」や「内容の重複」を見つけたら、片方を削るか別の表現に書き換えよ。
   2. [文脈の流れ]: 全体として自然で流れるような1つの記事として読めるよう、セクション間の接続を調整せよ。
   3. [文字数維持]: 各セクションの字数を大きく変えないこと。推敲で大幅に増やしたり減らしたりしない。
-  4. [トーン維持]: 「北欧、暮らしの道具店」や「キナリノ」風の温かいエッセイ調のトーン＆マナーを崩さないこと。
+  4. [トーン維持]: ${isKuramikke ? 'やさしく落ち着いた実用的な文体（不安な読者に寄り添い、詩的・曖昧にしない）を崩さないこと。' : '「北欧、暮らしの道具店」や「キナリノ」風の温かいエッセイ調のトーン＆マナーを崩さないこと。'}
   5. [見出し保持]: 各セクションの見出し（text）は原則として変更しないこと。本文（content）の推敲に集中せよ。
   6. [メインKW保持]: メインキーワード「${mainKeyword}」の配置は今のまま保つこと。完全一致の確認や、KWを入れるための書き換えはしない。
-  7. [事実の点検]: 参考データにない事実・体験（固有名詞・数字・料金・営業時間・「私が実際に〜した」のような書き手自身の体験）が混ざっていたら、原則として【削る】こと。削っても文章が自然に完結するように前後を整える。体験として残してよいのは、参考データに「運営者の体験」と明記されたものだけ。他人の体験は出どころ（「取材先の○○さんによると」「口コミでは」）が分かる形にする。価格・営業時間・仕様など読者が損をしうる情報だけは、【要確認：確認する内容と確認先】の形で付けてよい（付けるのは1セクション2つまで）。
-  8. [リンクの置き場]: 本文中の「【リンク：送客先】」と、すでに付いている「【要確認：…】」の表記は消さず、位置も変えないこと（内容は「何を・どこで確認するか」が分かる形のまま残す）。
+${isKuramikke ? `  7. [事実の点検]: 参考データにない数字（費用・期間・割合・年齢など）、研究や論文、団体名、URL、「私が実際に〜した」のような書き手自身の体験が混ざっていたら、削ること（論文・研究の名前・著者・年を作らない）。参考データにない一般的な内容は残してよいが、1文または1段落に独立させ、文末に【要確認：確認先】を付ける（1セクション3つまで）。その文を丸ごと削除しても前後が自然につながるようにする。専門家の立場での助言や、診断・個別の判断になっている文は、「一般的には〜」「専門家や窓口に相談」の形に直す。
+` : `  7. [事実の点検]: 参考データにない事実・体験（固有名詞・数字・料金・営業時間・「私が実際に〜した」のような書き手自身の体験）が混ざっていたら、原則として【削る】こと。削っても文章が自然に完結するように前後を整える。体験として残してよいのは、参考データに「運営者の体験」と明記されたものだけ。他人の体験は出どころ（「取材先の○○さんによると」「口コミでは」）が分かる形にする。価格・営業時間・仕様など読者が損をしうる情報だけは、【要確認：確認する内容と確認先】の形で付けてよい（付けるのは1セクション2つまで）。`}
+${isKuramikke ? `  7b. [免責・基準日]: 記事の最後にある「※この記事は一般的な情報提供です…」と「※この記事は〜時点の情報をもとに作成しています…」の2行は、変更・削除しないこと。
+` : ''}  8. [リンクの置き場]: 本文中の「【リンク：送客先】」と、すでに付いている「【要確認：…】」の表記は消さず、位置も変えないこと（内容は「何を・どこで確認するか」が分かる形のまま残す）。
 ${mediaKey === 'sumigi' ? `  9. [sumigi・表現の点検]: seo-rules.md §5 のNG表現（「治る」「防げる」「完全に除去」「必ず効果がある」「医学的に証明」「健康に効果」「改善する」「予防」など）が残っていたら、「〜をサポートする機能」「使う環境で感じ方は変わります」などのOK表現に直すこと。公開している試験結果を超える効果は書かない。\n` : ''}
   # 入出力形式
   - 入力・出力ともに以下のJSON配列形式とする。
@@ -295,6 +326,13 @@ const AI_CHECK_ITEMS: { id: string; label: string }[] = [
   { id: 'need_confirm', label: '価格・営業時間・仕様など損をしうる情報に【要確認】が付いている' },
 ];
 
+// クラミッケ（健康・介護・終活）で追加する、AIによる点検項目
+const KURAMIKKE_AI_CHECK_ITEMS: { id: string; label: string }[] = [
+  { id: 'consult_guidance', label: '個別の判断（症状・契約・相続・税）に踏み込まず、相談先を案内している' },
+  { id: 'no_fabricated_sources', label: '論文・研究・団体名・URL・数字を作っていない（参考データにあるものだけ）' },
+  { id: 'tone_ok', label: '不安な読者に寄り添うやさしい文体で、断定・煽り・誘惑する表現がない' },
+];
+
 export const checkArticle = async (
   structure: StructureForPolish[],
   mainKeyword: string,
@@ -302,7 +340,9 @@ export const checkArticle = async (
   design?: ArticleDesign,
   databaseText: string = '',
 ): Promise<CheckItem[]> => {
-  const codeItems = runCodeChecks(structure);
+  const mediaKey = MEDIA_RULE_KEY[mediaType] ?? 'default';
+  const codeItems = runCodeChecks(structure, mediaKey);
+  const aiCheckItems = mediaKey === KURAMIKKE_KEY ? [...AI_CHECK_ITEMS, ...KURAMIKKE_AI_CHECK_ITEMS] : AI_CHECK_ITEMS;
   if (!genAI) throw new Error("API Key not set");
   const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
@@ -311,7 +351,7 @@ export const checkArticle = async (
   あなたは厳格な校閲者です。渡された記事が seo-rules.md の §7「出力の自己点検」を満たしているか、項目ごとに判定してください。記事を書き換えてはいけません。判定と理由だけを返します。
 
   # 点検項目
-${AI_CHECK_ITEMS.map((it) => `  - ${it.id}: ${it.label}`).join('\n')}
+${aiCheckItems.map((it) => `  - ${it.id}: ${it.label}`).join('\n')}
 
   # 判定の基準
   - "ok": 問題が見当たらない。
@@ -341,7 +381,7 @@ ${AI_CHECK_ITEMS.map((it) => `  - ${it.id}: ${it.label}`).join('\n')}
     const jsonMatch = result.response.text().match(/\[[\s\S]*\]/);
     if (!jsonMatch) throw new Error("点検結果のJSON解析に失敗");
     const parsed: { id?: string; status?: string; reason?: string }[] = JSON.parse(jsonMatch[0]);
-    const aiItems: CheckItem[] = AI_CHECK_ITEMS.map((it) => {
+    const aiItems: CheckItem[] = aiCheckItems.map((it) => {
       const found = parsed.find((p) => p.id === it.id);
       return {
         id: it.id,
