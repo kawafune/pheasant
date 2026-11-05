@@ -23,6 +23,7 @@ const explainGeminiError = (e: unknown): string => {
   const status = err?.status ?? Number(msg.match(/\[(\d{3})[ \]]/)?.[1]);
   if (status === 400 && /API key/i.test(msg)) return 'APIキーが無効です（期限切れ・削除・コピーミスの可能性）';
   if (status === 400) return 'リクエストが受け付けられませんでした（400）。キーの形式を確認してください';
+  if (status === 402 || /credits are depleted|prepayment/i.test(msg)) return 'Gemini の前払いクレジット（残高）が残っていません（402）。Google AI Studio でプロジェクトの残高・お支払い設定を確認してください。キーを作り直しても、同じプロジェクトでは直りません';
   if (status === 401 || status === 403) return 'このキーは使えません（権限・利用制限・無効化の可能性）。Google AI Studio でキーの状態を確認してください';
   if (status === 404) return 'モデルが見つかりません（404）。モデル名の変更の可能性があります';
   if (status === 429) return '利用上限（クォータ）に達しています。時間をおくか、Google AI Studio で利用状況を確認してください';
