@@ -37,6 +37,7 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
 
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('kiwi_apikey') || '');
   const [apiStatus, setApiStatus] = useState<'idle' | 'ok' | 'error'>('idle');
+  const [apiError, setApiError] = useState('');
   const [mediaType, setMediaType] = useState(() => localStorage.getItem('kiwi_media') || 'default');
   const [mainKeyword, setMainKeyword] = useState(() => loadState('kiwi_main', ''));
   const [subKeywords, setSubKeywords] = useState<string[]>(() => loadState('kiwi_sub', []));
@@ -79,10 +80,15 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
   const checkApiConnection = async () => {
     if (!apiKey) return;
     setApiStatus('idle');
-    const isOk = await initGemini(apiKey);
-    setApiStatus(isOk ? 'ok' : 'error');
-    if(isOk) toast.success('Gemini API 接続OK');
-    else toast.error('APIキーが無効です');
+    setApiError('');
+    const result = await initGemini(apiKey);
+    setApiStatus(result.ok ? 'ok' : 'error');
+    if (result.ok) {
+      toast.success('Gemini API 接続OK');
+    } else {
+      setApiError(result.reason);
+      toast.error(result.reason, { duration: 8000 });
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'dokusou' | 'history') => {
@@ -409,7 +415,7 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
         />
       )}
       <PheasantSidebar 
-        {...{apiStatus, apiKey, setApiKey, checkApiConnection, handleFileUpload, presets, loadPreset, newPresetName, setNewPresetName, newPresetUrl, setNewPresetUrl, savePreset, mainKeyword, setMainKeyword, subKeywords, cannibalAlerts, activeSheetSources, reloadSheetSource, removeSheetSource, databaseText, setDatabaseText, handleGenerateStructure: requestGenerateStructure, stopGenerateStructure, isStructuring, isGenerating, clearAll, fileInputKey, mediaType, setMediaType, design, setDesign, onLogout}} 
+        {...{apiStatus, apiError, apiKey, setApiKey, checkApiConnection, handleFileUpload, presets, loadPreset, newPresetName, setNewPresetName, newPresetUrl, setNewPresetUrl, savePreset, mainKeyword, setMainKeyword, subKeywords, cannibalAlerts, activeSheetSources, reloadSheetSource, removeSheetSource, databaseText, setDatabaseText, handleGenerateStructure: requestGenerateStructure, stopGenerateStructure, isStructuring, isGenerating, clearAll, fileInputKey, mediaType, setMediaType, design, setDesign, onLogout}} 
       />
       <PheasantEditor 
         {...{structure, setStructure, handleWriteSection, handleWriteAllSections, stopWriteAllSections, isBatchWriting, handlePolishWholeArticle, isGenerating, isPolishing, writingIndex, mainKeyword, meta, handleCheckArticle, isChecking, checkResults, closeCheckResults: () => setCheckResults(null)}} 

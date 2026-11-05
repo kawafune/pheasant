@@ -3,10 +3,11 @@ import { Trash2 } from 'lucide-react';
 
 type Props = {
   apiStatus: 'idle' | 'ok' | 'error';
+  apiError: string;
   clearAll: () => void;
 };
 
-export const SidebarHeader: React.FC<Props> = ({ apiStatus, clearAll }) => {
+export const SidebarHeader: React.FC<Props> = ({ apiStatus, apiError, clearAll }) => {
   return (
     <div className="mb-6">
       {/* ロゴエリア */}
@@ -40,6 +41,9 @@ export const SidebarHeader: React.FC<Props> = ({ apiStatus, clearAll }) => {
         }`}></span>
         {apiStatus === 'ok' ? 'ONLINE — 接続中' : apiStatus === 'error' ? 'OFFLINE — 接続エラー' : '未接続'}
       </div>
+      {apiStatus === 'error' && apiError && (
+        <p className="mt-1.5 text-[11px] leading-relaxed text-red-600">{apiError}</p>
+      )}
     </div>
   );
 };

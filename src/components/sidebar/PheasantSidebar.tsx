@@ -12,6 +12,7 @@ import type { SheetSource } from '../../lib/sheetKeywords';
 
 type Props = {
   apiStatus: 'idle' | 'ok' | 'error';
+  apiError: string;
   apiKey: string;
   setApiKey: (s: string) => void;
   checkApiConnection: () => void;
@@ -56,7 +57,7 @@ export const PheasantSidebar: React.FC<Props> = (props) => {
       }`}></div>
 
       <div className="p-5 flex-1">
-        <SidebarHeader apiStatus={props.apiStatus} clearAll={props.clearAll} />
+        <SidebarHeader apiStatus={props.apiStatus} apiError={props.apiError} clearAll={props.clearAll} />
         
         <ApiKeySection 
           apiKey={props.apiKey} 

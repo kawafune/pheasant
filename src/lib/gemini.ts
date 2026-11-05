@@ -8,15 +8,32 @@ import type { ArticleDesign, ArticleMeta } from './articleDesign';
 
 let genAI: GoogleGenerativeAI | null = null;
 
-export const initGemini = async (apiKey: string) => {
+export type GeminiInitResult = { ok: true } | { ok: false; reason: string };
+
+// 接続の失敗を、原因が分かる日本語に直す（APIキーそのものは含めない）
+const explainGeminiError = (e: unknown): string => {
+  const err = e as { status?: number; message?: string };
+  const msg = String(err?.message ?? '');
+  const status = err?.status ?? Number(msg.match(/\[(\d{3})[ \]]/)?.[1]);
+  if (status === 400 && /API key/i.test(msg)) return 'APIキーが無効です（期限切れ・削除・コピーミスの可能性）';
+  if (status === 400) return 'リクエストが受け付けられませんでした（400）。キーの形式を確認してください';
+  if (status === 401 || status === 403) return 'このキーは使えません（権限・利用制限・無効化の可能性）。Google AI Studio でキーの状態を確認してください';
+  if (status === 404) return 'モデルが見つかりません（404）。モデル名の変更の可能性があります';
+  if (status === 429) return '利用上限（クォータ）に達しています。時間をおくか、Google AI Studio で利用状況を確認してください';
+  if (status && status >= 500) return `Google側で一時的な問題が起きています（${status}）。少し待ってもう一度お試しください`;
+  if (/fetch|network|Failed to/i.test(msg)) return 'ネットワークに接続できません。通信環境を確認してください';
+  return '接続に失敗しました（原因を特定できませんでした）';
+};
+
+export const initGemini = async (apiKey: string): Promise<GeminiInitResult> => {
   try {
     genAI = new GoogleGenerativeAI(apiKey);
     // 安定稼働している最新モデルに固定
     const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
     await model.generateContent("test");
-    return true; 
-  } catch {
-    return false; 
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: explainGeminiError(e) };
   }
 };
 
