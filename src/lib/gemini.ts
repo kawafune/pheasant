@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import type { GenerativeModel, GenerateContentResult } from "@google/generative-ai";
 import SEO_RULES from './seo-rules.md?raw';
 import { designToPromptText } from './articleDesign';
 import { runCodeChecks } from './articleCheck';
@@ -55,6 +56,62 @@ export const initGemini = async (apiKey: string): Promise<GeminiInitResult> => {
   }
 };
 
+// --- AI呼び出しの共通処理 ---
+// AIの返答の形が崩れた／途中で切れたときのエラー（理由をそのまま画面に出す）
+export class AiOutputError extends Error {}
+
+// 画面に出す失敗理由（APIのエラーは原因を日本語に直す）
+export const describeAiError = (e: unknown): string =>
+  e instanceof AiOutputError ? e.message : explainGeminiError(e);
+
+const sleep = (ms: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener('abort', () => { clearTimeout(timer); reject(new DOMException('aborted', 'AbortError')); }, { once: true });
+  });
+
+const RETRY_DELAYS_MS = [15000, 30000];
+
+const isRetryable = (e: unknown): boolean => {
+  const err = e as { status?: number; message?: string };
+  const status = err?.status ?? Number(String(err?.message ?? '').match(/\[(\d{3})[ \]]/)?.[1]);
+  return status === 429 || status === 500 || status === 503;
+};
+
+// 混雑（429：1分あたりの上限）や一時的な障害（500/503）のときは、少し待って最大2回まで自動でやり直す
+const generateWithRetry = async (model: GenerativeModel, parts: string[], signal?: AbortSignal): Promise<GenerateContentResult> => {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await model.generateContent(parts, { signal });
+    } catch (e) {
+      if (signal?.aborted || attempt >= RETRY_DELAYS_MS.length || !isRetryable(e)) throw e;
+      console.warn(`[Pheasant] Geminiが混雑しています。${RETRY_DELAYS_MS[attempt] / 1000}秒後にやり直します`);
+      await sleep(RETRY_DELAYS_MS[attempt], signal);
+    }
+  }
+};
+
+// 返答の本文を取り出す。長すぎて途中で切れていたら、その旨のエラーにする
+const responseText = (result: GenerateContentResult): string => {
+  if (result.response.candidates?.[0]?.finishReason === 'MAX_TOKENS') {
+    throw new AiOutputError('AIの返答が長すぎて、途中で切れました。記事を短くするか、セクションごとに直してください');
+  }
+  return result.response.text();
+};
+
+// JSONの返答を取り出す
+const parseJson = <T,>(text: string, pattern: RegExp): T => {
+  const match = text.match(pattern);
+  if (!match) throw new AiOutputError('AIの返答の形式が崩れました。もう一度お試しください');
+  try {
+    return JSON.parse(match[0]) as T;
+  } catch {
+    throw new AiOutputError('AIの返答の形式が崩れました。もう一度お試しください');
+  }
+};
+
+const JSON_CONFIG = { responseMimeType: 'application/json' };
+
 // --- SEOルール（src/lib/seo-rules.md が正本）の読み込み ---
 // 画面上の mediaType 値 → seo-rules.md §6 の媒体名
 const MEDIA_RULE_KEY: Record<string, string> = {
@@ -96,7 +153,7 @@ export const generateStructure = async (
   signal?: AbortSignal,
 ): Promise<StructureResult> => {
   if (!genAI) throw new Error("API Key not set");
-  const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+  const model = genAI.getGenerativeModel({ model: "gemini-flash-latest", generationConfig: JSON_CONFIG });
 
   // まとめ見出しの例。クラミッケは詩的にせず、次にやることが分かる見出しにする
   const summaryExample = (MEDIA_RULE_KEY[mediaType] ?? 'default') === KURAMIKKE_KEY
@@ -139,14 +196,11 @@ export const generateStructure = async (
 
   const designText = designToPromptText(design);
   const prompt = `メインKW: ${mainKeyword}\nサブKW: ${subKeywords.join(", ")}\n${designText ? designText + "\n" : ""}参考データ: ${databaseText.substring(0, 100000)}`;
-  const result = await model.generateContent([SYSTEM_PROMPT, prompt], { signal });
-  const text = result.response.text();
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error("JSON生成失敗");
-  const parsed = JSON.parse(jsonMatch[0]);
+  const result = await generateWithRetry(model, [SYSTEM_PROMPT, prompt], signal);
+  const parsed = parseJson<Record<string, unknown> & { structure: StructureResult['structure'] }>(responseText(result), /\{[\s\S]*\}/);
   return {
-    title_idea: parsed.title_idea ?? '',
-    target_persona: parsed.target_persona ?? '',
+    title_idea: typeof parsed.title_idea === 'string' ? parsed.title_idea : '',
+    target_persona: typeof parsed.target_persona === 'string' ? parsed.target_persona : '',
     meta_description: typeof parsed.meta_description === 'string' ? parsed.meta_description : '',
     key_points: Array.isArray(parsed.key_points) ? parsed.key_points.filter((k: unknown): k is string => typeof k === 'string') : [],
     conclusion: typeof parsed.conclusion === 'string' ? parsed.conclusion : '',
@@ -291,8 +345,8 @@ ${isKuramikke ? `  - 「〜です」「〜ます」を基本に、「〜かも�
     designText,
     `# 参考データ（一次情報）\n${databaseText.substring(0, 100000) || '（参考データなし）'}`,
   ].filter(Boolean).join('\n\n');
-  const result = await model.generateContent([SYSTEM_PROMPT, prompt], { signal });
-  const text = result.response.text();
+  const result = await generateWithRetry(model, [SYSTEM_PROMPT, prompt], signal);
+  const text = responseText(result);
   // クラミッケ：まとめの最後に、免責文と情報の基準日をコードで付ける（AIには書かせない）
   if (isKuramikke && isLast && !hasKuramikkeDisclaimer(text)) {
     return `${text.trimEnd()}\n\n${buildKuramikkeFooter()}`;
@@ -309,7 +363,7 @@ interface StructureForPolish {
 
 export const polishWholeArticle = async (structure: StructureForPolish[], mainKeyword: string, mediaType: string, databaseText: string = ''): Promise<StructureForPolish[]> => {
   if (!genAI) throw new Error("API Key not set");
-  const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+  const model = genAI.getGenerativeModel({ model: "gemini-flash-latest", generationConfig: JSON_CONFIG });
   const mediaKey = MEDIA_RULE_KEY[mediaType] ?? 'default';
   const isKuramikke = mediaKey === KURAMIKKE_KEY;
 
@@ -342,11 +396,8 @@ ${mediaKey === 'sumigi' ? `  9. [sumigi・表現の点検]: seo-rules.md §5 の
 
   const articleJson = JSON.stringify(structure, null, 2);
   const prompt = `以下の記事全体を推敲してください。\nメインKW: ${mainKeyword}\n\n# 参考データ（一次情報。事実の点検に使う）\n${databaseText.substring(0, 100000) || '（参考データなし）'}\n\n# 記事\n${articleJson}`;
-  const result = await model.generateContent([SYSTEM_PROMPT, prompt]);
-  const text = result.response.text();
-  const jsonMatch = text.match(/\[[\s\S]*\]/);
-  if (!jsonMatch) throw new Error("推敲結果のJSON解析に失敗");
-  return JSON.parse(jsonMatch[0]);
+  const result = await generateWithRetry(model, [SYSTEM_PROMPT, prompt]);
+  return parseJson<StructureForPolish[]>(responseText(result), /\[[\s\S]*\]/);
 };
 
 // --- 出力前の点検（seo-rules.md §7） ---
@@ -379,7 +430,7 @@ export const checkArticle = async (
   const codeItems = runCodeChecks(structure, mediaKey);
   const aiCheckItems = mediaKey === KURAMIKKE_KEY ? [...AI_CHECK_ITEMS, ...KURAMIKKE_AI_CHECK_ITEMS] : AI_CHECK_ITEMS;
   if (!genAI) throw new Error("API Key not set");
-  const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+  const model = genAI.getGenerativeModel({ model: "gemini-flash-latest", generationConfig: JSON_CONFIG });
 
   const SYSTEM_PROMPT = `
   ${buildRulesBlock(mediaType)}
@@ -412,10 +463,8 @@ ${aiCheckItems.map((it) => `  - ${it.id}: ${it.label}`).join('\n')}
   ].filter(Boolean).join('\n\n');
 
   try {
-    const result = await model.generateContent([SYSTEM_PROMPT, prompt]);
-    const jsonMatch = result.response.text().match(/\[[\s\S]*\]/);
-    if (!jsonMatch) throw new Error("点検結果のJSON解析に失敗");
-    const parsed: { id?: string; status?: string; reason?: string }[] = JSON.parse(jsonMatch[0]);
+    const result = await generateWithRetry(model, [SYSTEM_PROMPT, prompt]);
+    const parsed = parseJson<{ id?: string; status?: string; reason?: string }[]>(responseText(result), /\[[\s\S]*\]/);
     const aiItems: CheckItem[] = aiCheckItems.map((it) => {
       const found = parsed.find((p) => p.id === it.id);
       return {
@@ -431,7 +480,7 @@ ${aiCheckItems.map((it) => `  - ${it.id}: ${it.label}`).join('\n')}
     console.error(e);
     return [
       ...codeItems,
-      { id: 'ai_failed', label: 'AIによる点検', status: 'warn', reason: 'AI点検に失敗しました。もう一度お試しください', source: 'ai' },
+      { id: 'ai_failed', label: 'AIによる点検', status: 'warn', reason: `AI点検に失敗しました：${describeAiError(e)}`, source: 'ai' },
     ];
   }
 };

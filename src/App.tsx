@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { initGemini, generateStructure, generateSectionContent, checkArticle } from './lib/gemini';
+import { initGemini, generateStructure, generateSectionContent, checkArticle, describeAiError } from './lib/gemini';
 import type { CheckItem } from './lib/articleCheck';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
@@ -235,9 +235,9 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
       setMeta({ metaDescription: result.meta_description, keyPoints: result.key_points, conclusion: result.conclusion });
       setCheckResults(null);
       toast.success('構成案完成');
-    } catch {
+    } catch (e) {
       if (controller.signal.aborted) toast('構成案の作成を止めました', { icon: '⏹️' });
-      else toast.error('生成失敗');
+      else toast.error(`構成案の作成に失敗しました：${describeAiError(e)}`, { duration: 8000 });
     }
     structureAbortRef.current = null;
     setIsStructuring(false);
@@ -273,7 +273,7 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
         return newS;
       });
       toast.success('執筆完了', { id: toastId });
-    } catch { toast.error('執筆エラー', { id: toastId }); }
+    } catch (e) { toast.error(`執筆に失敗しました：${describeAiError(e)}`, { id: toastId, duration: 8000 }); }
     setWritingIndex(null);
     setIsGenerating(false);
   };
@@ -317,9 +317,9 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
           return newS;
         });
         doneCount++;
-      } catch {
+      } catch (e) {
         if (controller.signal.aborted) break;
-        toast.error(`「${structure[idx].text}」の執筆に失敗`);
+        toast.error(`「${structure[idx].text}」の執筆に失敗：${describeAiError(e)}`, { duration: 8000 });
       }
 
       // 最後のセクション以外は2秒間の待機（API負荷軽減）
@@ -353,11 +353,11 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
     
     // 全て執筆済みか簡易チェック
     if (structure.some(s => !s.content)) {
-      if (!confirm('まだ執筆されていないセクションがあります。このまま推敲を実行しますか？')) return;
+      if (!confirm('まだ執筆されていないセクションがあります。このまま「全体を整える」を実行しますか？')) return;
     }
 
     setIsPolishing(true);
-    const toastId = toast.loading('記事全体を推敲しています...（これには数分かかる場合があります）');
+    const toastId = toast.loading('記事全体を整えています...（数分かかることがあります）');
 
     try {
       // 既存のgemini.tsに追加された polishWholeArticle をインポートして呼び出す
@@ -366,10 +366,10 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
       
       // 結果で上書き
       setStructure(polishedStructure as StructureItem[]);
-      toast.success('推敲が完了しました！', { id: toastId });
+      toast.success('記事全体を整えました！', { id: toastId });
     } catch (e) {
       console.error(e);
-      toast.error('推敲に失敗しました', { id: toastId });
+      toast.error(`「全体を整える」に失敗しました：${describeAiError(e)}`, { id: toastId, duration: 8000 });
     }
 
     setIsPolishing(false);
@@ -378,15 +378,15 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
   const handleCheckArticle = async () => {
     if (apiStatus !== 'ok') return toast.error('API接続を確認してください');
     setIsChecking(true);
-    const toastId = toast.loading('記事を点検しています...');
+    const toastId = toast.loading('公開前チェックをしています...');
     try {
       const items = await checkArticle(structure, mainKeyword, mediaType, design, databaseText);
       setCheckResults(items);
       const warnCount = items.filter(i => i.status === 'warn').length;
-      toast.success(warnCount > 0 ? `点検完了：要確認 ${warnCount}件` : '点検完了：すべてOK', { id: toastId });
+      toast.success(warnCount > 0 ? `チェック完了：要確認 ${warnCount}件` : 'チェック完了：すべてOK', { id: toastId });
     } catch (e) {
       console.error(e);
-      toast.error('点検に失敗しました', { id: toastId });
+      toast.error(`公開前チェックに失敗しました：${describeAiError(e)}`, { id: toastId, duration: 8000 });
     }
     setIsChecking(false);
   };

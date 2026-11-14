@@ -1,5 +1,6 @@
 import React from 'react';
-import { Copy, FileDown, Zap, Archive, ClipboardCheck, Square } from 'lucide-react';
+import { Copy, FileDown, Zap, Archive, ClipboardCheck, Square, Sparkles } from 'lucide-react';
+import { HelpTip } from './HelpTip';
 
 type Props = {
   copyForWordPress: () => void;
@@ -53,15 +54,17 @@ export const EditorHeader: React.FC<Props> = ({ copyForWordPress, copyAsPlainTex
               disabled={isGenerating || isPolishing}
               className="bg-stone-600 text-stone-200 px-3 py-2 rounded-md shadow-sm hover:bg-stone-500 font-semibold flex items-center gap-1.5 transition text-sm active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {isPolishing ? '推敲中...' : '記事推敲'}
+              <Sparkles size={14} /> {isPolishing ? '整えています...' : '全体を整える'}
             </button>
+            <HelpTip label="全体を整える" text={"書き上がった記事全体をAIが読み直して、整えます。\n・見出し同士の内容の重なりや、つながりを直す\n・参考データにない事実や体験談は、削るか【要確認】を付ける\n・見出しはそのまま、本文が書き換わります\n\n全セクションを書き終えてから使うのがおすすめです。"} />
             <button
               onClick={handleCheckArticle}
               disabled={isGenerating || isPolishing || isChecking}
               className="bg-stone-600 text-stone-200 px-3 py-2 rounded-md shadow-sm hover:bg-stone-500 font-semibold flex items-center gap-1.5 transition text-sm active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              <ClipboardCheck size={14} /> {isChecking ? '点検中...' : '点検'}
+              <ClipboardCheck size={14} /> {isChecking ? 'チェック中...' : '公開前チェック'}
             </button>
+            <HelpTip label="公開前チェック" text={"公開してよい状態かを確認して、結果を一覧で表示します（記事は書き換えません）。\n・コードで確認：タイトルの字数、使ってはいけない表現\n・AIで確認：見出し直後の答え、事実の作り込み、まとめ、リンクの位置、【要確認】の付け忘れ\n\n「要確認」が出た項目を、手で直してから公開します。"} />
             <button 
               onClick={copyAsPlainText} 
               className="bg-stone-600 text-stone-200 px-3 py-2 rounded-md shadow-sm hover:bg-stone-500 font-semibold flex items-center gap-1.5 transition text-sm active:scale-95"

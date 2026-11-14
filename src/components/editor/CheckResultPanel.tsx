@@ -14,7 +14,7 @@ export const CheckResultPanel: React.FC<Props> = ({ items, onClose }) => {
     <div className="bg-white border border-slate-200 rounded-lg p-4 text-sm text-slate-700">
       <div className="flex items-center justify-between mb-3">
         <div className="font-bold">
-          出力前の点検
+          公開前チェック
           <span className={`ml-2 text-xs ${warnCount > 0 ? 'text-amber-600' : 'text-emerald-700'}`}>
             {warnCount > 0 ? `要確認 ${warnCount}件` : 'すべてOK'}
           </span>
