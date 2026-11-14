@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { initGemini, generateStructure, generateSectionContent, checkArticle, describeAiError } from './lib/gemini';
+import { initGemini, generateStructure, generateSectionContent, checkArticle, describeAiError, setUsageListener } from './lib/gemini';
+import { EMPTY_USAGE, normalizeUsage } from './lib/articleUsage';
+import type { ArticleUsage } from './lib/articleUsage';
 import type { CheckItem } from './lib/articleCheck';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
@@ -49,6 +51,7 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
   const [checkResults, setCheckResults] = useState<CheckItem[] | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const [fileInputKey, setFileInputKey] = useState(0);
+  const [articleUsage, setArticleUsage] = useState<ArticleUsage>(() => normalizeUsage(loadState('pheasant_usage', EMPTY_USAGE)));
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [isStructuring, setIsStructuring] = useState(false);
   const structureAbortRef = useRef<AbortController | null>(null);
@@ -71,6 +74,17 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
   useEffect(() => localStorage.setItem('kiwi_struct', JSON.stringify(structure)), [structure]);
   useEffect(() => localStorage.setItem(DESIGN_STORAGE_KEY, JSON.stringify(design)), [design]);
   useEffect(() => localStorage.setItem(META_STORAGE_KEY, JSON.stringify(meta)), [meta]);
+  useEffect(() => localStorage.setItem('pheasant_usage', JSON.stringify(articleUsage)), [articleUsage]);
+  // AIを呼ぶたびに、使ったトークン量を「この記事のAI使用量」に足していく
+  useEffect(() => {
+    setUsageListener(u => setArticleUsage(prev => ({
+      calls: prev.calls + 1,
+      input: prev.input + u.input,
+      cached: prev.cached + u.cached,
+      output: prev.output + u.output,
+    })));
+    return () => setUsageListener(null);
+  }, []);
   useEffect(() => localStorage.setItem('kiwi_presets', JSON.stringify(presets)), [presets]);
 
   useEffect(() => {
@@ -225,6 +239,7 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
     if (apiStatus !== 'ok') return toast.error('API接続を確認してください');
     const controller = new AbortController();
     structureAbortRef.current = controller;
+    setArticleUsage(EMPTY_USAGE); // 新しい構成案＝新しい記事として数え直す
     setIsGenerating(true);
     setIsStructuring(true);
     try {
@@ -400,6 +415,7 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
     if (!confirm('入力した内容と、作った構成・本文を、すべて消します。\n（APIキー・掲載メディア・シート連携・履歴は残ります）\nよろしいですか？')) return;
     setMainKeyword(''); setSubKeywords([]); setDatabaseText(''); setStructure([]); setDesign(EMPTY_DESIGN); setMeta(EMPTY_META); setCheckResults(null);
     setFileInputKey(k => k + 1);
+    setArticleUsage(EMPTY_USAGE);
     toast('すべて消しました', { icon: '🧹' });
   };
 
@@ -421,7 +437,7 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
         {...{apiStatus, apiError, apiErrorDetail, apiKey, setApiKey, checkApiConnection, handleFileUpload, presets, loadPreset, newPresetName, setNewPresetName, newPresetUrl, setNewPresetUrl, savePreset, mainKeyword, setMainKeyword, subKeywords, cannibalAlerts, activeSheetSources, reloadSheetSource, removeSheetSource, databaseText, setDatabaseText, handleGenerateStructure: requestGenerateStructure, stopGenerateStructure, isStructuring, isGenerating, clearAll, fileInputKey, mediaType, setMediaType, design, setDesign, onLogout}} 
       />
       <PheasantEditor 
-        {...{structure, setStructure, handleWriteSection, handleWriteAllSections, stopWriteAllSections, isBatchWriting, handlePolishWholeArticle, isGenerating, isPolishing, writingIndex, mainKeyword, meta, handleCheckArticle, isChecking, checkResults, closeCheckResults: () => setCheckResults(null)}} 
+        {...{structure, setStructure, handleWriteSection, handleWriteAllSections, stopWriteAllSections, isBatchWriting, handlePolishWholeArticle, isGenerating, isPolishing, writingIndex, mainKeyword, meta, handleCheckArticle, isChecking, checkResults, closeCheckResults: () => setCheckResults(null), articleUsage}} 
       />
     </div>
   );

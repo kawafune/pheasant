@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import type { GenerativeModel, GenerateContentResult } from "@google/generative-ai";
+import type { GenerativeModel, GenerateContentResult, UsageMetadata } from "@google/generative-ai";
 import SEO_RULES from './seo-rules.md?raw';
 import { designToPromptText } from './articleDesign';
 import { runCodeChecks } from './articleCheck';
@@ -70,6 +70,26 @@ const sleep = (ms: number, signal?: AbortSignal) =>
     signal?.addEventListener('abort', () => { clearTimeout(timer); reject(new DOMException('aborted', 'AbortError')); }, { once: true });
   });
 
+// トークン使用量の通知（画面の「この記事のAI使用量」に使う）
+export interface AiUsage {
+  input: number; // 入力トークン（キャッシュ分を含む）
+  cached: number; // うち、キャッシュから読まれた（割引になる）入力トークン
+  output: number; // 出力トークン（考える過程のトークンを含む）
+}
+
+let usageListener: ((u: AiUsage) => void) | null = null;
+export const setUsageListener = (fn: ((u: AiUsage) => void) | null) => { usageListener = fn; };
+
+const reportUsage = (result: GenerateContentResult) => {
+  const m = result.response.usageMetadata as (UsageMetadata & { thoughtsTokenCount?: number }) | undefined;
+  if (!m || !usageListener) return;
+  usageListener({
+    input: m.promptTokenCount ?? 0,
+    cached: m.cachedContentTokenCount ?? 0,
+    output: (m.candidatesTokenCount ?? 0) + (m.thoughtsTokenCount ?? 0),
+  });
+};
+
 const RETRY_DELAYS_MS = [15000, 30000];
 
 const isRetryable = (e: unknown): boolean => {
@@ -82,7 +102,9 @@ const isRetryable = (e: unknown): boolean => {
 const generateWithRetry = async (model: GenerativeModel, parts: string[], signal?: AbortSignal): Promise<GenerateContentResult> => {
   for (let attempt = 0; ; attempt++) {
     try {
-      return await model.generateContent(parts, { signal });
+      const result = await model.generateContent(parts, { signal });
+      reportUsage(result);
+      return result;
     } catch (e) {
       if (signal?.aborted || attempt >= RETRY_DELAYS_MS.length || !isRetryable(e)) throw e;
       console.warn(`[Pheasant] Geminiが混雑しています。${RETRY_DELAYS_MS[attempt] / 1000}秒後にやり直します`);
@@ -134,6 +156,15 @@ ${SEO_RULES}
 `;
 };
 
+// 全ての呼び出しの「先頭」に置く共通部分（ルール＋参考データ）。
+// 先頭が毎回同じだと、Gemini の自動キャッシュが効き、2回目以降の入力が割引になる。
+// ここに呼び出しごとに変わる内容（見出し・記事本文など）を入れないこと。
+const buildCommonPrefix = (mediaType: string, databaseText: string): string => `${buildRulesBlock(mediaType)}
+# 参考データ（一次情報）
+${databaseText.substring(0, 100000) || '（参考データなし）'}
+# ここまでが参考データ
+`;
+
 // --- 構成案生成ロジック（seo-rules.md 準拠） ---
 export interface StructureResult {
   title_idea: string;
@@ -161,7 +192,6 @@ export const generateStructure = async (
     : `「${mainKeyword}を暮らしに添える、小さな一歩」`;
 
   const SYSTEM_PROMPT = `
-  ${buildRulesBlock(mediaType)}
   あなたは世界最高峰のSEO戦略家であり、Pheasantシステムの頭脳です。上記のルールと以下の【構成作成の掟】を厳守し、JSON構成を作成せよ。
 
   # 構成作成の掟（絶対厳守）
@@ -195,8 +225,8 @@ export const generateStructure = async (
   `;
 
   const designText = designToPromptText(design);
-  const prompt = `メインKW: ${mainKeyword}\nサブKW: ${subKeywords.join(", ")}\n${designText ? designText + "\n" : ""}参考データ: ${databaseText.substring(0, 100000)}`;
-  const result = await generateWithRetry(model, [SYSTEM_PROMPT, prompt], signal);
+  const prompt = `メインKW: ${mainKeyword}\nサブKW: ${subKeywords.join(", ")}\n${designText ? designText + "\n" : ""}参考データ: 冒頭の「参考データ」を参照`;
+  const result = await generateWithRetry(model, [buildCommonPrefix(mediaType, databaseText), SYSTEM_PROMPT, prompt], signal);
   const parsed = parseJson<Record<string, unknown> & { structure: StructureResult['structure'] }>(responseText(result), /\{[\s\S]*\}/);
   return {
     title_idea: typeof parsed.title_idea === 'string' ? parsed.title_idea : '',
@@ -296,7 +326,6 @@ ${isKuramikke ? `     - 読者の不安に、最初の一言だけ寄り添う�
   - 参考データに根拠がなく書けない内容は、【要確認】を付けず、書かない。参考データから言える範囲だけで、短くても自然に完結する文章にする（一般論や水増しで埋めない。足りない分は短くてよい）。`;
 
   const SYSTEM_PROMPT = `
-  ${buildRulesBlock(mediaType)}
   ${isKuramikke
     ? `あなたは「クラミッケ」（健康・介護・終活のメディア）の専属ライターです。
   不安や心配を抱えた読者に寄り添う、やさしく落ち着いた文体で書いてください。ただし内容は詩的・曖昧にせず、読んで理解でき、次の行動に移せる具体的なものにします。`
@@ -343,9 +372,8 @@ ${isKuramikke ? `  - 「〜です」「〜ます」を基本に、「〜かも�
     tagInfo,
     `# 記事の構成（▶が今回のセクション）\n${outline}`,
     designText,
-    `# 参考データ（一次情報）\n${databaseText.substring(0, 100000) || '（参考データなし）'}`,
   ].filter(Boolean).join('\n\n');
-  const result = await generateWithRetry(model, [SYSTEM_PROMPT, prompt], signal);
+  const result = await generateWithRetry(model, [buildCommonPrefix(mediaType, databaseText), SYSTEM_PROMPT, prompt], signal);
   const text = responseText(result);
   // クラミッケ：まとめの最後に、免責文と情報の基準日をコードで付ける（AIには書かせない）
   if (isKuramikke && isLast && !hasKuramikkeDisclaimer(text)) {
@@ -368,7 +396,6 @@ export const polishWholeArticle = async (structure: StructureForPolish[], mainKe
   const isKuramikke = mediaKey === KURAMIKKE_KEY;
 
   const SYSTEM_PROMPT = `
-  ${buildRulesBlock(mediaType)}
   あなたは「${mediaType}」の専属プロ編集者です。
   入力された構成と本文全体を通読し、以下の推敲・調整を行ってください。
 
@@ -395,8 +422,8 @@ ${mediaKey === 'sumigi' ? `  9. [sumigi・表現の点検]: seo-rules.md §5 の
   `;
 
   const articleJson = JSON.stringify(structure, null, 2);
-  const prompt = `以下の記事全体を推敲してください。\nメインKW: ${mainKeyword}\n\n# 参考データ（一次情報。事実の点検に使う）\n${databaseText.substring(0, 100000) || '（参考データなし）'}\n\n# 記事\n${articleJson}`;
-  const result = await generateWithRetry(model, [SYSTEM_PROMPT, prompt]);
+  const prompt = `以下の記事全体を推敲してください（事実の点検には、冒頭の「参考データ」を使う）。\nメインKW: ${mainKeyword}\n\n# 記事\n${articleJson}`;
+  const result = await generateWithRetry(model, [buildCommonPrefix(mediaType, databaseText), SYSTEM_PROMPT, prompt]);
   return parseJson<StructureForPolish[]>(responseText(result), /\[[\s\S]*\]/);
 };
 
@@ -433,7 +460,6 @@ export const checkArticle = async (
   const model = genAI.getGenerativeModel({ model: "gemini-flash-latest", generationConfig: JSON_CONFIG });
 
   const SYSTEM_PROMPT = `
-  ${buildRulesBlock(mediaType)}
   あなたは厳格な校閲者です。渡された記事が seo-rules.md の §7「出力の自己点検」を満たしているか、項目ごとに判定してください。記事を書き換えてはいけません。判定と理由だけを返します。
 
   # 点検項目
@@ -458,12 +484,11 @@ ${aiCheckItems.map((it) => `  - ${it.id}: ${it.label}`).join('\n')}
   const prompt = [
     `メインKW: ${mainKeyword}`,
     designText,
-    `# 参考データ（一次情報）\n${databaseText.substring(0, 100000) || '（参考データなし）'}`,
     `# 記事\n${JSON.stringify(structure, null, 2)}`,
   ].filter(Boolean).join('\n\n');
 
   try {
-    const result = await generateWithRetry(model, [SYSTEM_PROMPT, prompt]);
+    const result = await generateWithRetry(model, [buildCommonPrefix(mediaType, databaseText), SYSTEM_PROMPT, prompt]);
     const parsed = parseJson<{ id?: string; status?: string; reason?: string }[]>(responseText(result), /\[[\s\S]*\]/);
     const aiItems: CheckItem[] = aiCheckItems.map((it) => {
       const found = parsed.find((p) => p.id === it.id);

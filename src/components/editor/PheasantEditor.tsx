@@ -7,6 +7,8 @@ import { HistoryPanel } from './HistoryPanel';
 import { ArticleMetaPanel } from './ArticleMetaPanel';
 import { CheckResultPanel } from './CheckResultPanel';
 import { TodoPanel } from './TodoPanel';
+import { UsageBar } from './UsageBar';
+import type { ArticleUsage } from '../../lib/articleUsage';
 import type { ArticleMeta } from '../../lib/articleDesign';
 import type { CheckItem } from '../../lib/articleCheck';
 import { extractTodos } from '../../lib/articleCheck';
@@ -35,9 +37,10 @@ type Props = {
   isChecking: boolean;
   checkResults: CheckItem[] | null;
   closeCheckResults: () => void;
+  articleUsage: ArticleUsage;
 };
 
-export const PheasantEditor: React.FC<Props> = ({ structure, setStructure, handleWriteSection, handleWriteAllSections, stopWriteAllSections, isBatchWriting, handlePolishWholeArticle, isGenerating, isPolishing, writingIndex, mainKeyword, meta, handleCheckArticle, isChecking, checkResults, closeCheckResults }) => {
+export const PheasantEditor: React.FC<Props> = ({ structure, setStructure, handleWriteSection, handleWriteAllSections, stopWriteAllSections, isBatchWriting, handlePolishWholeArticle, isGenerating, isPolishing, writingIndex, mainKeyword, meta, handleCheckArticle, isChecking, checkResults, closeCheckResults, articleUsage }) => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const todos = extractTodos(structure);
 
@@ -134,6 +137,8 @@ export const PheasantEditor: React.FC<Props> = ({ structure, setStructure, handl
             onOpenHistory={() => setIsHistoryOpen(true)}
           />
           
+          <UsageBar usage={articleUsage} />
+
           <TodoPanel todos={todos} />
 
           {checkResults && <CheckResultPanel items={checkResults} onClose={closeCheckResults} />}
