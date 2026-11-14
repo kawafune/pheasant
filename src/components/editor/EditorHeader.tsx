@@ -1,10 +1,12 @@
 import React from 'react';
-import { Copy, FileDown, Zap, Archive, ClipboardCheck, Square, Sparkles } from 'lucide-react';
+import { Zap, ClipboardCheck, Square, Sparkles } from 'lucide-react';
+import { OutputMenu } from './OutputMenu';
 import { HelpTip } from './HelpTip';
 
 type Props = {
   copyForWordPress: () => void;
   copyAsPlainText: () => void;
+  downloadMarkdown: () => void;
   handleWriteAllSections: () => void;
   stopWriteAllSections: () => void;
   isBatchWriting: boolean;
@@ -16,7 +18,7 @@ type Props = {
   onOpenHistory: () => void;
 };
 
-export const EditorHeader: React.FC<Props> = ({ copyForWordPress, copyAsPlainText, handleWriteAllSections, stopWriteAllSections, isBatchWriting, handlePolishWholeArticle, handleCheckArticle, isChecking, isGenerating, isPolishing, onOpenHistory }) => {
+export const EditorHeader: React.FC<Props> = ({ copyForWordPress, copyAsPlainText, downloadMarkdown, handleWriteAllSections, stopWriteAllSections, isBatchWriting, handlePolishWholeArticle, handleCheckArticle, isChecking, isGenerating, isPolishing, onOpenHistory }) => {
   return (
     <div className="sticky top-0 z-10 pt-2 pb-4 mb-6" style={{ background: 'linear-gradient(to bottom, #f8f6f1 80%, transparent)' }}>
       {/* 和綴じ本風ヘッダー */}
@@ -65,24 +67,12 @@ export const EditorHeader: React.FC<Props> = ({ copyForWordPress, copyAsPlainTex
               <ClipboardCheck size={14} /> {isChecking ? 'チェック中...' : '公開前チェック'}
             </button>
             <HelpTip label="公開前チェック" text={"公開してよい状態かを確認して、結果を一覧で表示します（記事は書き換えません）。\n・コードで確認：タイトルの字数、使ってはいけない表現\n・AIで確認：見出し直後の答え、事実の作り込み、まとめ、リンクの位置、【要確認】の付け忘れ\n\n「要確認」が出た項目を、手で直してから公開します。"} />
-            <button 
-              onClick={copyAsPlainText} 
-              className="bg-stone-600 text-stone-200 px-3 py-2 rounded-md shadow-sm hover:bg-stone-500 font-semibold flex items-center gap-1.5 transition text-sm active:scale-95"
-            >
-              <FileDown size={14} /> テキスト
-            </button>
-            <button 
-              onClick={copyForWordPress} 
-              className="bg-stone-600 text-stone-200 px-3 py-2 rounded-md shadow-sm hover:bg-stone-500 font-semibold flex items-center gap-1.5 transition text-sm active:scale-95"
-            >
-              <Copy size={14} /> WP用
-            </button>
-            <button
-              onClick={onOpenHistory}
-              className="bg-stone-600/50 text-stone-300 px-2.5 py-2 rounded-md hover:bg-stone-500/50 hover:text-stone-100 flex items-center gap-1 transition text-sm active:scale-95"
-            >
-              <Archive size={14} />
-            </button>
+            <OutputMenu
+              copyAsPlainText={copyAsPlainText}
+              copyForWordPress={copyForWordPress}
+              downloadMarkdown={downloadMarkdown}
+              onOpenHistory={onOpenHistory}
+            />
           </div>
         </div>
 

@@ -86,15 +86,8 @@ export const PheasantEditor: React.FC<Props> = ({ structure, setStructure, handl
     warnRemainingTodos();
   };
 
-  const copyAsPlainText = async () => {
-    if (structure.length === 0) return;
-
-    const plainText = buildPlainText();
-    navigator.clipboard.writeText(plainText);
-    toast.success("テキストをコピーしました！（改行保持）", { icon: '📝' });
-    warnRemainingTodos();
-
-    // IndexedDB に自動保存
+  // 履歴（このブラウザ内の保存）に記録する
+  const saveToHistory = async (plainText: string) => {
     try {
       await saveArticle({
         createdAt: new Date().toISOString(),
@@ -103,9 +96,71 @@ export const PheasantEditor: React.FC<Props> = ({ structure, setStructure, handl
       });
       toast.success("履歴に自動保存しました", { icon: '💾', style: { fontSize: '12px' } });
     } catch (e) {
-      // 保存失敗してもコピー自体は成功しているので軽く通知
+      // 保存失敗してもコピー・ダウンロード自体は成功しているので軽く通知
       console.error('履歴保存エラー:', e);
     }
+  };
+
+  const copyAsPlainText = async () => {
+    if (structure.length === 0) return;
+
+    const plainText = buildPlainText();
+    navigator.clipboard.writeText(plainText);
+    toast.success("テキストをコピーしました！（改行保持）", { icon: '📝' });
+    warnRemainingTodos();
+    await saveToHistory(plainText);
+  };
+
+  // 本文をMarkdownに変換する。1行ずつ段落にし、「・」で始まる行は箇条書きにする
+  const contentToMarkdown = (content: string): string => {
+    const blocks: string[] = [];
+    let list: string[] = [];
+    const flush = () => { if (list.length) { blocks.push(list.join('\n')); list = []; } };
+    content.split('\n').map((l) => l.trim()).filter(Boolean).forEach((line) => {
+      const m = line.match(/^[・\-*]\s*(.*)$/);
+      if (m) list.push(`- ${m[1]}`);
+      else { flush(); blocks.push(line); }
+    });
+    flush();
+    return blocks.join('\n\n');
+  };
+
+  const buildMarkdown = (): string => {
+    const parts: string[] = [];
+    // メタ情報は、表示されないコメントとして先頭に入れておく
+    if (meta.metaDescription || meta.keyPoints.length > 0) {
+      const lines = ['<!--'];
+      if (meta.metaDescription) lines.push(`メタディスクリプション：${meta.metaDescription}`);
+      if (meta.keyPoints.length > 0) lines.push('記事のポイント：', ...meta.keyPoints.map((k) => `・${k}`));
+      lines.push('-->');
+      parts.push(lines.join('\n'));
+    }
+    structure.forEach((item) => {
+      const level = item.tag === 'h1' ? '#' : item.tag === 'h2' ? '##' : '###';
+      parts.push(`${level} ${item.text}`);
+      if (item.content) parts.push(contentToMarkdown(item.content));
+    });
+    return parts.join('\n\n') + '\n';
+  };
+
+  const downloadMarkdown = async () => {
+    if (structure.length === 0) return;
+    const md = buildMarkdown();
+    const d = new Date();
+    const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    const name = (mainKeyword || '記事').replace(/[\\/:*?"<>|\s]+/g, '_').slice(0, 40);
+    const url = URL.createObjectURL(new Blob([md], { type: 'text/markdown;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${name}_${ymd}.md`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    // ダウンロードが始まる前に片付けるとファイル名が失われるため、少し待ってから片付ける
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    toast.success("Markdown（.md）をダウンロードしました", { icon: '📄' });
+    warnRemainingTodos();
+    await saveToHistory(buildPlainText());
   };
 
   return (
@@ -126,6 +181,7 @@ export const PheasantEditor: React.FC<Props> = ({ structure, setStructure, handl
           <EditorHeader 
             copyForWordPress={copyForWordPress} 
             copyAsPlainText={copyAsPlainText} 
+            downloadMarkdown={downloadMarkdown}
             handleWriteAllSections={handleWriteAllSections}
             stopWriteAllSections={stopWriteAllSections}
             isBatchWriting={isBatchWriting}

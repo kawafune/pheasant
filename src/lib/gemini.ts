@@ -27,6 +27,7 @@ const explainGeminiError = (e: unknown): string => {
   if (status === 402 || /credits are depleted|prepayment/i.test(msg)) return 'Gemini の前払いクレジット（残高）が残っていません（402）。Google AI Studio でプロジェクトの残高・お支払い設定を確認してください。キーを作り直しても、同じプロジェクトでは直りません';
   if (status === 401 || status === 403) return 'このキーは使えません（権限・利用制限・無効化の可能性）。Google AI Studio でキーの状態を確認してください';
   if (status === 404) return 'モデルが見つかりません（404）。モデル名の変更の可能性があります';
+  if (/spending cap|spend cap/i.test(msg)) return '今月の支出上限（Spend cap）に達しました。Google AI Studio の「Spend」で上限を見直すか、来月まで待ってください（時間をおいても回復しません）';
   if (status === 429) return '利用上限（クォータ）に達しています。時間をおくか、Google AI Studio で利用状況を確認してください';
   if (status && status >= 500) return `Google側で一時的な問題が起きています（${status}）。少し待ってもう一度お試しください`;
   // キーに全角文字などが入っていると、ブラウザが送信前に止める
@@ -95,6 +96,8 @@ const RETRY_DELAYS_MS = [15000, 30000];
 const isRetryable = (e: unknown): boolean => {
   const err = e as { status?: number; message?: string };
   const status = err?.status ?? Number(String(err?.message ?? '').match(/\[(\d{3})[ \]]/)?.[1]);
+  // 月の支出上限に達した429は、待っても回復しないのでやり直さない
+  if (/spending cap|spend cap/i.test(String(err?.message ?? ''))) return false;
   return status === 429 || status === 500 || status === 503;
 };
 
