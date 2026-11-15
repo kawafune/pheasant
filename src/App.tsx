@@ -14,6 +14,9 @@ import { loadSheetEntries, parseSheetUrl, sheetKeyOf, sheetLabel, SHEET_URL_BY_M
 import { DuplicateModal } from './components/DuplicateModal';
 import type { SheetSource } from './lib/sheetKeywords';
 import { isLoggedIn, logout } from './lib/auth';
+import { loadCommonDbMap, commonDbKey } from './lib/commonDb';
+import { saveGenLog } from './lib/historyDb';
+import { buildGenLog } from './lib/genLog';
 import { DESIGN_STORAGE_KEY, EMPTY_DESIGN, EMPTY_META, META_STORAGE_KEY, normalizeDesign, normalizeMeta } from './lib/articleDesign';
 import type { ArticleDesign, ArticleMeta } from './lib/articleDesign';
 
@@ -29,6 +32,15 @@ interface Preset {
   name: string;
   url: string;
 }
+
+// 画面に出す掲載メディア名
+const MEDIA_LABELS: Record<string, string> = {
+  default: '指定なし',
+  tabinoto: 'タビノト。',
+  sumigi: 'sumigi',
+  cocci3: 'cocci',
+  kuramikke: 'クラミッケ',
+};
 
 function PheasantTool({ onLogout }: { onLogout: () => void }) {
   const loadState = <T,>(key: string, defaultVal: T): T => {
@@ -51,6 +63,10 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
   const [checkResults, setCheckResults] = useState<CheckItem[] | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const [fileInputKey, setFileInputKey] = useState(0);
+  // 共通データベース：掲載メディアごとに1つ（pheasant_commonDb_<mediaType>）
+  const [commonDbMap, setCommonDbMap] = useState<Record<string, string>>(() => loadCommonDbMap());
+  const commonDb = commonDbMap[mediaType] ?? '';
+  const setCommonDb = (v: string) => setCommonDbMap(prev => ({ ...prev, [mediaType]: v }));
   const [articleUsage, setArticleUsage] = useState<ArticleUsage>(() => normalizeUsage(loadState('pheasant_usage', EMPTY_USAGE)));
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [isStructuring, setIsStructuring] = useState(false);
@@ -74,6 +90,9 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
   useEffect(() => localStorage.setItem('kiwi_struct', JSON.stringify(structure)), [structure]);
   useEffect(() => localStorage.setItem(DESIGN_STORAGE_KEY, JSON.stringify(design)), [design]);
   useEffect(() => localStorage.setItem(META_STORAGE_KEY, JSON.stringify(meta)), [meta]);
+  useEffect(() => {
+    Object.entries(commonDbMap).forEach(([media, text]) => localStorage.setItem(commonDbKey(media), text));
+  }, [commonDbMap]);
   useEffect(() => localStorage.setItem('pheasant_usage', JSON.stringify(articleUsage)), [articleUsage]);
   // AIを呼ぶたびに、使ったトークン量を「この記事のAI使用量」に足していく
   useEffect(() => {
@@ -243,7 +262,7 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
     setIsGenerating(true);
     setIsStructuring(true);
     try {
-      const result = await generateStructure(mainKeyword, subKeywords.slice(0, 20), databaseText, mediaType, design, controller.signal);
+      const result = await generateStructure(mainKeyword, subKeywords.slice(0, 20), databaseText, mediaType, design, commonDb, controller.signal);
       // 停止ボタンが押された後に結果が届いても、画面には反映しない
       if (controller.signal.aborted) throw new DOMException('aborted', 'AbortError');
       setStructure(result.structure);
@@ -281,7 +300,7 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
     try {
       const item = structure[index];
       const isLast = index === structure.length - 1;
-      const content = await generateSectionContent({ sectionTitle: item.text, mainKeyword, mediaType, sectionTag: item.tag, isLast, index, structure, databaseText, design, meta });
+      const content = await generateSectionContent({ sectionTitle: item.text, mainKeyword, mediaType, sectionTag: item.tag, isLast, index, structure, databaseText, commonDb, design, meta });
       setStructure(prev => {
         const newS = [...prev];
         newS[index] = { ...newS[index], content };
@@ -323,7 +342,7 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
       try {
         const item = structure[idx];
         const isLast = idx === structure.length - 1;
-        const content = await generateSectionContent({ sectionTitle: item.text, mainKeyword, mediaType, sectionTag: item.tag, isLast, index: idx, structure, databaseText, design, meta, signal: controller.signal });
+        const content = await generateSectionContent({ sectionTitle: item.text, mainKeyword, mediaType, sectionTag: item.tag, isLast, index: idx, structure, databaseText, commonDb, design, meta, signal: controller.signal });
         // 停止ボタンが押された後に届いた結果は、画面に反映しない
         if (controller.signal.aborted) break;
         setStructure(prev => {
@@ -356,6 +375,13 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
       toast(`一括執筆を止めました（${doneCount}/${unwrittenIndices.length}件まで完了）`, { id: toastId, icon: '⏹️', duration: 6000 });
     } else {
       toast.success('全セクションの一括執筆が完了しました！', { id: toastId });
+      // 生成ログ（タスク13）：記事を1本書き終えたら1行記録する。失敗しても執筆結果には影響させない
+      if (doneCount > 0) {
+        saveGenLog(buildGenLog({
+          mediaType, mainKeyword, subKeywords, design, commonDb, databaseText,
+          title: structure.find((it) => it.tag === 'h1')?.text ?? '',
+        })).catch((e) => console.error('生成ログの保存エラー:', e));
+      }
     }
   };
 
@@ -377,7 +403,7 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
     try {
       // 既存のgemini.tsに追加された polishWholeArticle をインポートして呼び出す
       const { polishWholeArticle } = await import('./lib/gemini');
-      const polishedStructure = await polishWholeArticle(structure, mainKeyword, mediaType, databaseText);
+      const polishedStructure = await polishWholeArticle(structure, mainKeyword, mediaType, databaseText, commonDb);
       
       // 結果で上書き
       setStructure(polishedStructure as StructureItem[]);
@@ -395,7 +421,7 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
     setIsChecking(true);
     const toastId = toast.loading('公開前チェックをしています...');
     try {
-      const items = await checkArticle(structure, mainKeyword, mediaType, design, databaseText);
+      const items = await checkArticle(structure, mainKeyword, mediaType, design, databaseText, commonDb);
       setCheckResults(items);
       const warnCount = items.filter(i => i.status === 'warn').length;
       toast.success(warnCount > 0 ? `チェック完了：要確認 ${warnCount}件` : 'チェック完了：すべてOK', { id: toastId });
@@ -412,7 +438,7 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
       toast.error('作成中は消せません。先に「停止」を押すか、終わるのを待ってください');
       return;
     }
-    if (!confirm('入力した内容と、作った構成・本文を、すべて消します。\n（APIキー・掲載メディア・シート連携・履歴は残ります）\nよろしいですか？')) return;
+    if (!confirm('入力した内容と、作った構成・本文を、すべて消します。\n（APIキー・掲載メディア・共通データベース・シート連携・履歴は残ります）\nよろしいですか？')) return;
     setMainKeyword(''); setSubKeywords([]); setDatabaseText(''); setStructure([]); setDesign(EMPTY_DESIGN); setMeta(EMPTY_META); setCheckResults(null);
     setFileInputKey(k => k + 1);
     setArticleUsage(EMPTY_USAGE);
@@ -434,7 +460,7 @@ function PheasantTool({ onLogout }: { onLogout: () => void }) {
         />
       )}
       <PheasantSidebar 
-        {...{apiStatus, apiError, apiErrorDetail, apiKey, setApiKey, checkApiConnection, handleFileUpload, presets, loadPreset, newPresetName, setNewPresetName, newPresetUrl, setNewPresetUrl, savePreset, mainKeyword, setMainKeyword, subKeywords, cannibalAlerts, activeSheetSources, reloadSheetSource, removeSheetSource, databaseText, setDatabaseText, handleGenerateStructure: requestGenerateStructure, stopGenerateStructure, isStructuring, isGenerating, clearAll, fileInputKey, mediaType, setMediaType, design, setDesign, onLogout}} 
+        {...{apiStatus, apiError, apiErrorDetail, apiKey, setApiKey, checkApiConnection, handleFileUpload, presets, loadPreset, newPresetName, setNewPresetName, newPresetUrl, setNewPresetUrl, savePreset, mainKeyword, setMainKeyword, subKeywords, cannibalAlerts, activeSheetSources, reloadSheetSource, removeSheetSource, databaseText, setDatabaseText, handleGenerateStructure: requestGenerateStructure, stopGenerateStructure, isStructuring, isGenerating, clearAll, fileInputKey, mediaType, setMediaType, design, setDesign, commonDb, setCommonDb, mediaLabel: MEDIA_LABELS[mediaType] ?? mediaType, onLogout}} 
       />
       <PheasantEditor 
         {...{structure, setStructure, handleWriteSection, handleWriteAllSections, stopWriteAllSections, isBatchWriting, handlePolishWholeArticle, isGenerating, isPolishing, writingIndex, mainKeyword, meta, handleCheckArticle, isChecking, checkResults, closeCheckResults: () => setCheckResults(null), articleUsage}} 

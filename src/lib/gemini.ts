@@ -1,8 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { GenerativeModel, GenerateContentResult, UsageMetadata } from "@google/generative-ai";
 import SEO_RULES from './seo-rules.md?raw';
-import { designToPromptText } from './articleDesign';
-import { runCodeChecks } from './articleCheck';
+import { designToPromptText, buildAdNotice, hasAdNotice } from './articleDesign';
+import { runCodeChecks, isFaqHeading } from './articleCheck';
 import { KURAMIKKE_KEY, buildKuramikkeFooter, hasKuramikkeDisclaimer } from './mediaProfiles';
 import type { CheckItem } from './articleCheck';
 import type { ArticleDesign, ArticleMeta } from './articleDesign';
@@ -162,11 +162,20 @@ ${SEO_RULES}
 // 全ての呼び出しの「先頭」に置く共通部分（ルール＋参考データ）。
 // 先頭が毎回同じだと、Gemini の自動キャッシュが効き、2回目以降の入力が割引になる。
 // ここに呼び出しごとに変わる内容（見出し・記事本文など）を入れないこと。
-const buildCommonPrefix = (mediaType: string, databaseText: string): string => `${buildRulesBlock(mediaType)}
-# 参考データ（一次情報）
+const buildCommonPrefix = (mediaType: string, databaseText: string, commonDb: string = ''): string => {
+  // 共通データベース（媒体ごとに1つ）は、媒体が同じなら毎回同じなので、参考データより前に置く
+  const common = commonDb.trim()
+    ? `# 共通データベース（この媒体の記事全体で使う情報。記事の検索意図に合う情報だけを使い、合わなければ使わない）
+${commonDb.substring(0, 100000)}
+# ここまでが共通データベース
+`
+    : '';
+  return `${buildRulesBlock(mediaType)}
+${common}# 参考データ（一次情報）
 ${databaseText.substring(0, 100000) || '（参考データなし）'}
 # ここまでが参考データ
 `;
+};
 
 // --- 構成案生成ロジック（seo-rules.md 準拠） ---
 export interface StructureResult {
@@ -184,6 +193,7 @@ export const generateStructure = async (
   databaseText: string,
   mediaType: string = 'default',
   design?: ArticleDesign,
+  commonDb: string = '',
   signal?: AbortSignal,
 ): Promise<StructureResult> => {
   if (!genAI) throw new Error("API Key not set");
@@ -200,12 +210,13 @@ export const generateStructure = async (
   # 構成作成の掟（絶対厳守）
   1. [メインKWの配置]: メインKW「${mainKeyword}」はタイトルとH2に【自然な形で】含めること。完全一致にはこだわらず、読者が違和感なく読めることを優先する。全てのH3には入れないこと。
   2. [H1]: "structure" 配列の【一番最初の要素】に { "tag": "h1", "text": "記事タイトル" } を置く。H1は1つだけで、28〜40字前後。内容が一目で分かり、煽り・釣りは禁止。設計に「記事タイトル案」があれば優先して使う。
-  3. [H2・H3の数]: 本論のH2は2つが基本。H3は検索意図に必要な分だけ（12個前後が目安。cocci・sumigiの短い記事はもっと少なくてよい）。サブKWは主にH3に使う。同じ質問になるKWは1つの見出しにまとめる。
-  4. [見出しの形]: 見出しは短く、読者の「質問」の形を優先する。
+  3. [H2・H3の数]: 本論のH2は2つ前後が目安（必要なら増やしてよい）。H3は検索意図に必要な分だけ（12個前後が目安。cocci・sumigiの短い記事はもっと少なくてよい）。サブKWは主にH3に使う。同じ質問になるKWは1つの見出しにまとめる。
+  4. [見出しの形]: H2・H3は1つ【25字以内】。先頭に番号（「1.」「①」「第1章」など）を付けない。階層を飛ばさない（H1の次にいきなりH3を置かない）。見出しは読者の「質問」の形を優先する。
   5. [情報増分 (Information Gain)]: 提供された参考データ（一次情報）から、独自の知見・職人の声・現地で困ったことなどを抽出し、必ず少なくとも1つ「H3」の見出しとして構成に組み込むこと。参考データにない固有名詞・数字を見出しに入れない。
   6. [まとめ]: "structure" 配列の【一番最後の要素】は、記事を締めくくるH2（tag: "h2"）の「まとめ」見出しとする。メインKWを自然に含めること。「まとめ」「おわりに」だけの単調な見出しは避け、記事のテーマに沿った具体的でやわらかい見出しにする（例：${summaryExample}）。
   7. [結論に向ける]: 設計に「結論付けとスタンス」があれば、構成全体をその結論に向ける。なければ、参考データと検索意図から結論を一文で決めて、それに向ける。
-  8. [並び]: h1 → h2 → h3群 → h2 → h3群 → h2(まとめ) の順にする。
+  8. [よくある質問]: まとめの直前に、H2「よくある質問」を1つだけ置く（tag: "h2"、text: "よくある質問" または「${mainKeyword}のよくある質問」など25字以内）。このH2の下にH3は置かない（質問と答えは本文で4〜5問書く）。同じ検索意図の範囲の質問にする。
+  9. [並び]: h1 → h2 → h3群 → h2 → h3群 →（必要ならh2 → h3群）→ h2(よくある質問) → h2(まとめ) の順にする。
 
   # 追加で出力する項目
   - "meta_description": 記事を自然に要約した1〜2文。メインKWは自然に1回。記事ごとに固有の文にする。
@@ -229,7 +240,7 @@ export const generateStructure = async (
 
   const designText = designToPromptText(design);
   const prompt = `メインKW: ${mainKeyword}\nサブKW: ${subKeywords.join(", ")}\n${designText ? designText + "\n" : ""}参考データ: 冒頭の「参考データ」を参照`;
-  const result = await generateWithRetry(model, [buildCommonPrefix(mediaType, databaseText), SYSTEM_PROMPT, prompt], signal);
+  const result = await generateWithRetry(model, [buildCommonPrefix(mediaType, databaseText, commonDb), SYSTEM_PROMPT, prompt], signal);
   const parsed = parseJson<Record<string, unknown> & { structure: StructureResult['structure'] }>(responseText(result), /\{[\s\S]*\}/);
   return {
     title_idea: typeof parsed.title_idea === 'string' ? parsed.title_idea : '',
@@ -251,13 +262,14 @@ export interface SectionParams {
   index: number;
   structure: { tag: 'h1' | 'h2' | 'h3'; text: string }[]; // 構成全体（見出し一覧）
   databaseText: string; // 参考データ（一次情報）
+  commonDb?: string; // 共通データベース（媒体ごとに1つ）
   design?: ArticleDesign;
   meta?: ArticleMeta;
   signal?: AbortSignal; // 一括執筆の停止用
 }
 
 export const generateSectionContent = async (params: SectionParams) => {
-  const { sectionTitle, mainKeyword, mediaType, sectionTag, isLast, index, structure, databaseText, design, meta, signal } = params;
+  const { sectionTitle, mainKeyword, mediaType, sectionTag, isLast, index, structure, databaseText, commonDb = '', design, meta, signal } = params;
   if (!genAI) throw new Error("API Key not set");
   const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
@@ -267,14 +279,17 @@ export const generateSectionContent = async (params: SectionParams) => {
   const isFirstH2 = sectionTag === 'h2' && index === firstH2Index && !isLast;
   const hasCashPoint = !!design?.cashPoint?.trim();
   const isKuramikke = mediaKey === KURAMIKKE_KEY;
+  const isFaq = !isIntro && !isLast && isFaqHeading(sectionTitle);
 
   // 字数：固定の上限は置かず、媒体ごとの目安だけ示す
   const lengthRule = isIntro
     ? '- 導入文：文章部分は【300〜500文字程度】。ポイントと見出しリストは別に付ける。'
     : isLast
       ? '- まとめ：【300〜500文字程度】。内容が必要な場合のみ増やしてよい。'
+      : isFaq
+        ? '- よくある質問：4〜5問。答えは1問につき1〜3文で短く。'
       : mediaKey === 'tabinoto'
-        ? '- このセクション：内容に応じて【300〜800文字程度】。解説記事は総字数1万字前後まで可。'
+        ? '- このセクション：内容に応じて【300〜800文字程度】。解説記事は本文の表示文字で総字数8,000〜1万字前後まで可。'
         : '- このセクション：【200〜400文字程度】を目安に、必要な分だけ。水増し・冗長な語りはしない。';
 
   // 送客先リンクの置き場（seo-rules.md §6）
@@ -288,18 +303,32 @@ export const generateSectionContent = async (params: SectionParams) => {
     else if (mediaKey === 'cocci') linkRules.push('- 最後に来店・予約・空間レンタルの問い合わせへの送客先を【リンク：送客先】として置く。');
     else if (hasCashPoint) linkRules.push('- 最後に【リンク：送客先】を置く。');
   }
-  const linkBlock = linkRules.length > 0
-    ? `# 送客先リンクの置き場\n${linkRules.join('\n')}\n- 本文中には「【リンク：送客先】」のように置き場だけを書く。URLは作らない。${hasCashPoint ? '送客先は設計の「キャッシュポイント／送客先」を指す。' : '設計に送客先の指定がなくても、置き場の表記だけを書く（後で人が実際のリンクに置き換える）。'}\n`
+  const sendBlock = linkRules.length > 0
+    ? `## 送客先リンクの置き場\n${linkRules.join('\n')}\n- 本文中には「【リンク：送客先】」のように置き場だけを書く。URLは作らない。${hasCashPoint ? '送客先は設計の「キャッシュポイント／送客先」を指す。' : '設計に送客先の指定がなくても、置き場の表記だけを書く（後で人が実際のリンクに置き換える）。'}\n`
     : '';
+  // 内部リンク・発リンク（seo-rules.md §3・§4）。記事全体で内部リンク最大4本・発リンク最大2本なので、1セクションでは控えめに
+  const linkBlock = (isIntro || isFaq)
+    ? `# リンク\n${sendBlock}- このセクションには内部リンク・発リンクを置かない。\n`
+    : `# リンク\n${sendBlock}- 内部リンク：文脈が合う関連記事があるときだけ、このセクションに多くても1つ、「【内部リンク：関連記事のテーマ】」の形で置き場だけを書く（記事全体で最大4本）。無理に入れない。
+- 発リンク（出典）：公的機関・メーカー公式・学術機関などの一次情報源だけ。「（出典：○○）」の形で書く（記事全体で最大2本。このセクションでは多くても1つ）。URLは参考データ・共通データベースに書かれているものだけを使い、作らない。出典名だけで確認できないときは「（出典：○○）【要確認：URL】」とする。適切な出典がなければ入れない。
+- 送客先リンク（【リンク：送客先】）は、内部リンク・発リンクとは別に数える。\n`;
 
   const sectionRule = isIntro
     ? `0. 今回は導入文（リード文）を書く。次の順で構成する：
-     ① 読者の日常の悩みに寄り添う【共感】（「〜って悩みますよね」「〜な気がします」など）
+     ⓪ 執筆者のあいさつを一言（例：「こんにちは。」程度の短い一文。名前・肩書き・経歴・体験は作らない）
+     ① 読者の悩みに寄り添う【共感】。ただし「〜で悩んでいませんか？」「先に結論を言うと」のような決まり文句は使わず、この記事の内容に合った言葉で書く。悩みの言い換えで水増ししない
      ② 結論・方向性を早めに示す${meta?.conclusion ? `（結論：${meta.conclusion}）` : ''}
      ③ この記事で分かること（メインKWと主要な見出し用KWを自然に含める。長くしすぎない）
-     ④ 【記事のポイント】を箇条書き4つ${meta && meta.keyPoints.length > 0 ? `。次の4つをそのまま、または読みやすく整えて使う：\n${meta.keyPoints.map((k) => `        ・${k}`).join('\n')}` : '。構成と参考データから4つ作る'}
+     ④ 【記事のポイント】を箇条書き4つ（行頭は「・」、句点なし）${meta && meta.keyPoints.length > 0 ? `。次の4つをそのまま、または読みやすく整えて使う：\n${meta.keyPoints.map((k) => `        ・${k}`).join('\n')}` : '。構成と参考データから4つ作る'}
      ⑤ 【この記事の構成（全見出し）】を箇条書きでリストアップ
      ⑥ リストの直後に${isKuramikke ? '「この記事が、気持ちを整理して、次の一歩を考えるきっかけになれば嬉しいです」といったやさしい一文' : '「この記事が、少しでも心地よい暮らしのヒントになれば嬉しいです」といった温かい一文'}`
+    : isFaq
+      ? `0. 今回は「よくある質問」を書く（まとめの直前に置くセクション）。
+     - 同じ検索意図の範囲で、読者が次に気になりそうな質問を4〜5問。本文の見出しと同じ質問は避ける。
+     - 形式は必ず次のとおり（1問ごとに空行を入れる）：
+       Q. 質問文
+       A. 答え（1〜3文。最初の1文で答えを言い切る）
+     - 答えの根拠は参考データ・共通データベースだけ。分からないことは書かない。`
     : isLast
       ? `0. 今回は「まとめ」を書く。
      - 見出しのコピペや、本文の単なる要約の繰り返しにしない。
@@ -336,7 +365,7 @@ ${isKuramikke ? `     - 読者の不安に、最初の一言だけ寄り添う�
   「北欧、暮らしの道具店」や「キナリノ」のような、読者の心に優しく寄り添う、体温のあるエッセイ風のトーン＆マナーで執筆してください。`}
 
   # 事実と体験のルール（最重要・絶対厳守）
-  - 根拠にしてよいのは、渡された「参考データ」と「記事の設計」だけ。データにない固有名詞・数字・料金・営業時間・仕様を作らない。
+  - 根拠にしてよいのは、渡された「参考データ」「共通データベース（記事に合う情報だけ）」「記事の設計」だけ。データにない固有名詞・数字・料金・営業時間・仕様を作らない。
   - 体験として書いてよいのは、参考データに「運営者の体験」と明記されたものだけ。それ以外を、書き手自身が使った・行ったかのように書かない（「私が実際に〜した」と書かない）。
   - 参考データの他人の話は、出どころを書く（例：「取材先の○○さんによると」「口コミでは」）。
 ${confirmRules}${sumigiRule}
@@ -353,6 +382,10 @@ ${isKuramikke ? `  - 「〜です」「〜ます」を基本に、「〜かも�
   - 詩的な比喩や、飾りの多い表現は避ける。` : `  - 「〜です」「〜ます」の単調な連続を避ける。
   - 「〜ですよね」「〜なんです」「〜かもしれません」「〜だなあと思います」といった、余韻を残す柔らかい語尾を適度にミックスする。`}
   - 1文を長くしない。2〜3文ごとに段落（改行）を分ける。太字・マーカー等の装飾は使わない。
+  - 「入力された情報によれば」「参考データによると」など、AIの立場の前置きは使わない。
+  - AIが使いがちな語（「整理する」「強い」「弱い」など）や、不自然なカタカナ語・英語を避ける。文末を連続で同じにせず、接続語を使い分ける。
+  - 執筆者の所感の一言は控えめに（記事全体で最大3回なので、このセクションでは多くても1回）。
+  - 広告表記（「この記事には広告…」など）は本文に書かない（必要なときはPheasantが自動で付ける）。
   - 前後の見出しと内容が重ならないようにする。
 
   ${linkBlock}
@@ -376,8 +409,11 @@ ${isKuramikke ? `  - 「〜です」「〜ます」を基本に、「〜かも�
     `# 記事の構成（▶が今回のセクション）\n${outline}`,
     designText,
   ].filter(Boolean).join('\n\n');
-  const result = await generateWithRetry(model, [buildCommonPrefix(mediaType, databaseText), SYSTEM_PROMPT, prompt], signal);
-  const text = responseText(result);
+  const result = await generateWithRetry(model, [buildCommonPrefix(mediaType, databaseText, commonDb), SYSTEM_PROMPT, prompt], signal);
+  let text = responseText(result);
+  // 広告・PRを含む記事：導入文の先頭（タイトル直下）に広告表記をコードで付ける（seo-rules.md §8）
+  const adNotice = buildAdNotice(design);
+  if (isIntro && adNotice && !hasAdNotice(text)) text = `${adNotice}\n\n${text.trimStart()}`;
   // クラミッケ：まとめの最後に、免責文と情報の基準日をコードで付ける（AIには書かせない）
   if (isKuramikke && isLast && !hasKuramikkeDisclaimer(text)) {
     return `${text.trimEnd()}\n\n${buildKuramikkeFooter()}`;
@@ -392,7 +428,7 @@ interface StructureForPolish {
   content?: string;
 }
 
-export const polishWholeArticle = async (structure: StructureForPolish[], mainKeyword: string, mediaType: string, databaseText: string = ''): Promise<StructureForPolish[]> => {
+export const polishWholeArticle = async (structure: StructureForPolish[], mainKeyword: string, mediaType: string, databaseText: string = '', commonDb: string = ''): Promise<StructureForPolish[]> => {
   if (!genAI) throw new Error("API Key not set");
   const model = genAI.getGenerativeModel({ model: "gemini-flash-latest", generationConfig: JSON_CONFIG });
   const mediaKey = MEDIA_RULE_KEY[mediaType] ?? 'default';
@@ -413,6 +449,8 @@ ${isKuramikke ? `  7. [事実の点検]: 参考データにない数字（費用
 ` : `  7. [事実の点検]: 参考データにない事実・体験（固有名詞・数字・料金・営業時間・「私が実際に〜した」のような書き手自身の体験）が混ざっていたら、原則として【削る】こと。削っても文章が自然に完結するように前後を整える。体験として残してよいのは、参考データに「運営者の体験」と明記されたものだけ。他人の体験は出どころ（「取材先の○○さんによると」「口コミでは」）が分かる形にする。価格・営業時間・仕様など読者が損をしうる情報だけは、【要確認：確認する内容と確認先】の形で付けてよい（付けるのは1セクション2つまで）。`}
 ${isKuramikke ? `  7b. [免責・基準日]: 記事の最後にある「※この記事は一般的な情報提供です…」と「※この記事は〜時点の情報をもとに作成しています…」の2行は、変更・削除しないこと。
 ` : ''}  8. [リンクの置き場]: 本文中の「【リンク：送客先】」と、すでに付いている「【要確認：…】」の表記は消さず、位置も変えないこと（内容は「何を・どこで確認するか」が分かる形のまま残す）。
+  8b. [リンクの本数]: 「【内部リンク：…】」は記事全体で最大4本、「（出典：○○）」の発リンクは最大2本にする。多すぎるときは、文脈が弱いものから削る。参考データ・共通データベースにないURLが書かれていたら、URLを消して「【要確認：URL】」に置き換える。
+  8c. [広告表記・FAQ]: 導入文の先頭にある広告表記（「※この記事には広告…」「※この記事は○○から商品提供を受けて…」）は変更・削除しないこと。「よくある質問」の「Q. 」「A. 」の形式は崩さないこと。
 ${mediaKey === 'sumigi' ? `  9. [sumigi・表現の点検]: seo-rules.md §5 のNG表現（「治る」「防げる」「完全に除去」「必ず効果がある」「医学的に証明」「健康に効果」「改善する」「予防」など）が残っていたら、「〜をサポートする機能」「使う環境で感じ方は変わります」などのOK表現に直すこと。公開している試験結果を超える効果は書かない。\n` : ''}
   # 入出力形式
   - 入力・出力ともに以下のJSON配列形式とする。
@@ -426,7 +464,7 @@ ${mediaKey === 'sumigi' ? `  9. [sumigi・表現の点検]: seo-rules.md §5 の
 
   const articleJson = JSON.stringify(structure, null, 2);
   const prompt = `以下の記事全体を推敲してください（事実の点検には、冒頭の「参考データ」を使う）。\nメインKW: ${mainKeyword}\n\n# 記事\n${articleJson}`;
-  const result = await generateWithRetry(model, [buildCommonPrefix(mediaType, databaseText), SYSTEM_PROMPT, prompt]);
+  const result = await generateWithRetry(model, [buildCommonPrefix(mediaType, databaseText, commonDb), SYSTEM_PROMPT, prompt]);
   return parseJson<StructureForPolish[]>(responseText(result), /\[[\s\S]*\]/);
 };
 
@@ -455,9 +493,10 @@ export const checkArticle = async (
   mediaType: string,
   design?: ArticleDesign,
   databaseText: string = '',
+  commonDb: string = '',
 ): Promise<CheckItem[]> => {
   const mediaKey = MEDIA_RULE_KEY[mediaType] ?? 'default';
-  const codeItems = runCodeChecks(structure, mediaKey);
+  const codeItems = runCodeChecks(structure, mediaKey, design, `${databaseText}\n${commonDb}`);
   const aiCheckItems = mediaKey === KURAMIKKE_KEY ? [...AI_CHECK_ITEMS, ...KURAMIKKE_AI_CHECK_ITEMS] : AI_CHECK_ITEMS;
   if (!genAI) throw new Error("API Key not set");
   const model = genAI.getGenerativeModel({ model: "gemini-flash-latest", generationConfig: JSON_CONFIG });
@@ -491,7 +530,7 @@ ${aiCheckItems.map((it) => `  - ${it.id}: ${it.label}`).join('\n')}
   ].filter(Boolean).join('\n\n');
 
   try {
-    const result = await generateWithRetry(model, [buildCommonPrefix(mediaType, databaseText), SYSTEM_PROMPT, prompt]);
+    const result = await generateWithRetry(model, [buildCommonPrefix(mediaType, databaseText, commonDb), SYSTEM_PROMPT, prompt]);
     const parsed = parseJson<{ id?: string; status?: string; reason?: string }[]>(responseText(result), /\[[\s\S]*\]/);
     const aiItems: CheckItem[] = aiCheckItems.map((it) => {
       const found = parsed.find((p) => p.id === it.id);

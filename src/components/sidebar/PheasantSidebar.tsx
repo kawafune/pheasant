@@ -6,6 +6,7 @@ import { DataUploader } from './DataUploader';
 import { KeywordSettings } from './KeywordSettings';
 import { DatabaseInput } from './DatabaseInput';
 import { DesignInput } from './DesignInput';
+import { CommonDbInput } from './CommonDbInput';
 import type { ArticleDesign } from '../../lib/articleDesign';
 import type { CannibalAlert } from '../../lib/cannibal';
 import type { SheetSource } from '../../lib/sheetKeywords';
@@ -44,6 +45,9 @@ type Props = {
   setMediaType: (s: string) => void;
   design: ArticleDesign;
   setDesign: (d: ArticleDesign) => void;
+  commonDb: string;
+  setCommonDb: (s: string) => void;
+  mediaLabel: string;
   onLogout: () => void;
 };
 
@@ -92,6 +96,8 @@ export const PheasantSidebar: React.FC<Props> = (props) => {
           />
           
           <DesignInput design={props.design} setDesign={props.setDesign} />
+
+          <CommonDbInput mediaLabel={props.mediaLabel} commonDb={props.commonDb} setCommonDb={props.setCommonDb} />
 
           <DatabaseInput 
             databaseText={props.databaseText}

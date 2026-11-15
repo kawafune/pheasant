@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Copy, Trash2, Archive, Loader2 } from 'lucide-react';
-import { getAllArticles, deleteArticle } from '../../lib/historyDb';
+import { X, Copy, Trash2, Archive, Loader2, FileSpreadsheet } from 'lucide-react';
+import { getAllArticles, deleteArticle, getAllGenLogs, genLogsToCsv } from '../../lib/historyDb';
 import type { HistoryRecord } from '../../lib/historyDb';
 import { toast } from 'react-hot-toast';
 
@@ -49,6 +49,28 @@ export const HistoryPanel: React.FC<Props> = ({ isOpen, onClose }) => {
     }
   };
 
+  // 生成ログ（記事を1本書き終えるごとに1行）をCSVで書き出す
+  const handleExportLogs = async () => {
+    try {
+      const logs = await getAllGenLogs();
+      if (logs.length === 0) {
+        toast('生成ログはまだありません（一括執筆を最後まで終えると記録されます）', { icon: 'ℹ️' });
+        return;
+      }
+      const d = new Date();
+      const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+      const url = URL.createObjectURL(new Blob([genLogsToCsv(logs)], { type: 'text/csv;charset=utf-8' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `pheasant_genlog_${ymd}.csv`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      toast.success(`生成ログ ${logs.length}件をCSVで書き出しました`, { icon: '📊' });
+    } catch {
+      toast.error('生成ログの書き出しに失敗しました');
+    }
+  };
+
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
     return d.toLocaleDateString('ja-JP', {
@@ -78,6 +100,15 @@ export const HistoryPanel: React.FC<Props> = ({ isOpen, onClose }) => {
               className="p-1.5 rounded-md hover:bg-slate-600 text-stone-400 hover:text-stone-200 transition"
             >
               <X size={18} />
+            </button>
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <p className="text-[10px] text-stone-400 leading-relaxed">生成ログ：一括執筆を最後まで終えるごとに1行記録。url・公開日は空欄で出るので、公開後に追記してください。</p>
+            <button
+              onClick={handleExportLogs}
+              className="shrink-0 flex items-center gap-1 text-[11px] font-bold text-emerald-100 bg-emerald-700/60 hover:bg-emerald-600 border border-emerald-500/40 px-2.5 py-1 rounded-md transition"
+            >
+              <FileSpreadsheet size={12} /> 生成ログCSV
             </button>
           </div>
           <div className="h-0.5 mt-3 bg-gradient-to-r from-transparent via-emerald-500/40 to-transparent"></div>

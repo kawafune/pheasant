@@ -10,6 +10,7 @@ export const TodoPanel: React.FC<Props> = ({ todos }) => {
   if (todos.length === 0) return null;
   const confirms = todos.filter((t) => t.kind === 'confirm');
   const links = todos.filter((t) => t.kind === 'link');
+  const internals = todos.filter((t) => t.kind === 'internal');
 
   return (
     <div className="bg-amber-50/70 border border-amber-200 rounded-lg p-4 text-sm text-slate-700">
@@ -47,6 +48,23 @@ export const TodoPanel: React.FC<Props> = ({ todos }) => {
           </p>
           <ul className="space-y-1.5">
             {links.map((t, i) => (
+              <li key={i} className="bg-white border border-amber-100 rounded p-2 text-xs">
+                <span className="text-slate-400">{t.sectionTag.toUpperCase()}：{t.sectionText}</span>
+                <span className="ml-2 font-bold text-amber-700">{t.marker}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {internals.length > 0 && (
+        <div className={links.length > 0 ? 'mt-3' : ''}>
+          <div className="text-xs font-bold mb-1">③ 【内部リンク】を自分のサイトの関連記事に置き換える（{internals.length}件）</div>
+          <p className="text-[11px] text-slate-500 mb-1.5">
+            カッコの中のテーマに合う記事が同じサイトにあれば、そのリンクに置き換えます。<b>合う記事がなければ、カッコごと消して大丈夫です。</b>
+          </p>
+          <ul className="space-y-1.5">
+            {internals.map((t, i) => (
               <li key={i} className="bg-white border border-amber-100 rounded p-2 text-xs">
                 <span className="text-slate-400">{t.sectionTag.toUpperCase()}：{t.sectionText}</span>
                 <span className="ml-2 font-bold text-amber-700">{t.marker}</span>

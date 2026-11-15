@@ -1,6 +1,6 @@
 import React from 'react';
 import { ChevronDown } from 'lucide-react';
-import type { ArticleDesign } from '../../lib/articleDesign';
+import type { ArticleDesign, DesignTextKey } from '../../lib/articleDesign';
 
 type Props = {
   design: ArticleDesign;
@@ -8,7 +8,7 @@ type Props = {
 };
 
 type FieldDef = {
-  key: keyof ArticleDesign;
+  key: DesignTextKey;
   label: string;
   placeholder: string;
   rows: number;
@@ -32,6 +32,7 @@ export const DesignInput: React.FC<Props> = ({ design, setDesign }) => {
         <span>
           記事の設計（任意）
           {filled > 0 && <span className="ml-2 text-emerald-700 normal-case">{filled}項目入力済み</span>}
+          {design.hasAd && <span className="ml-2 text-amber-600 normal-case">広告・PRあり</span>}
         </span>
         <ChevronDown size={14} className="transition-transform group-open:rotate-180" />
       </summary>
@@ -48,6 +49,30 @@ export const DesignInput: React.FC<Props> = ({ design, setDesign }) => {
             />
           </div>
         ))}
+
+        {/* 広告・PR（seo-rules.md §8）。オンのとき、記事の冒頭に広告表記を自動で付ける */}
+        <div className="pt-2 border-t border-slate-100">
+          <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={design.hasAd}
+              onChange={(e) => setDesign({ ...design, hasAd: e.target.checked })}
+              className="accent-emerald-600"
+            />
+            広告・PRを含む
+          </label>
+          <p className="mt-1 text-[10px] text-slate-400 leading-relaxed">
+            アフィリエイト・商品提供・依頼を受けた記事はオン。導入文の先頭に広告表記が自動で入ります。通常のSEO記事はオフのまま。
+          </p>
+          {design.hasAd && (
+            <input
+              value={design.adSponsor}
+              onChange={(e) => setDesign({ ...design, adSponsor: e.target.value })}
+              placeholder="提供元（任意）例：株式会社〇〇"
+              className="mt-2 w-full p-2 border border-slate-200 rounded-md text-xs text-slate-700 focus:ring-1 focus:ring-emerald-500/30 focus:border-emerald-500 outline-none transition"
+            />
+          )}
+        </div>
       </div>
     </details>
   );

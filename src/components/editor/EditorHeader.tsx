@@ -66,7 +66,7 @@ export const EditorHeader: React.FC<Props> = ({ copyForWordPress, copyAsPlainTex
             >
               <ClipboardCheck size={14} /> {isChecking ? 'チェック中...' : '公開前チェック'}
             </button>
-            <HelpTip label="公開前チェック" text={"公開してよい状態かを確認して、結果を一覧で表示します（記事は書き換えません）。\n・コードで確認：タイトルの字数、使ってはいけない表現\n・AIで確認：見出し直後の答え、事実の作り込み、まとめ、リンクの位置、【要確認】の付け忘れ\n\n「要確認」が出た項目を、手で直してから公開します。"} />
+            <HelpTip label="公開前チェック" text={"公開してよい状態かを確認して、結果を一覧で表示します（記事は書き換えません）。\n・コードで確認：タイトルの字数、見出しの字数・番号・階層、記事のポイント、よくある質問、リンクの本数、使ってはいけない表現、広告表記\n・AIで確認：見出し直後の答え、事実の作り込み、まとめ、リンクの位置、【要確認】の付け忘れ\n\n「要確認」が出た項目を、手で直してから公開します。"} />
             <OutputMenu
               copyAsPlainText={copyAsPlainText}
               copyForWordPress={copyForWordPress}
