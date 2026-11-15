@@ -23,16 +23,17 @@ export const CommonDbInput: React.FC<Props> = ({ mediaLabel, commonDb, setCommon
       </summary>
       <div className="px-3 pb-3 space-y-2">
         <p className="text-[10px] text-slate-400 leading-relaxed">
-          この媒体の記事全体で使う情報（運営方針、よく使う公的資料と出典URL、商品・店舗の基本情報など）。記事に合う情報だけが使われます。掲載メディアごとに別々に保存されます。
+          この媒体の記事全体で使う情報（運営方針、よく使う公的資料と出典URL、商品・店舗の基本情報など）。記事に合う情報だけが使われます。掲載メディアごとに別々に保存されます。AIを呼ぶたびに毎回送るので、料金が増えないよう5,000字までにしています。要点だけを入れてください。
         </p>
         <textarea
           value={commonDb}
-          onChange={(e) => setCommonDb(e.target.value)}
+          onChange={(e) => setCommonDb(e.target.value.slice(0, COMMON_DB_LIMIT))}
+          maxLength={COMMON_DB_LIMIT}
           rows={5}
           placeholder="例：運営方針／よく使う公的資料（出典名とURL）／商品の基本情報"
           className="w-full p-2 border border-slate-200 rounded-md text-xs text-slate-700 focus:ring-1 focus:ring-emerald-500/30 focus:border-emerald-500 outline-none transition resize-y"
         />
-        <div className={`text-[10px] text-right font-mono ${count > COMMON_DB_LIMIT ? 'text-red-600 font-bold' : 'text-slate-400'}`}>
+        <div className={`text-[10px] text-right font-mono ${count >= COMMON_DB_LIMIT ? 'text-red-600 font-bold' : 'text-slate-400'}`}>
           {count.toLocaleString()} / {COMMON_DB_LIMIT.toLocaleString()}文字
         </div>
       </div>

@@ -5,7 +5,9 @@ export const COMMON_DB_MEDIA = ['default', 'tabinoto', 'sumigi', 'cocci3', 'kura
 
 export const commonDbKey = (mediaType: string) => `pheasant_commonDb_${mediaType}`;
 
-export const COMMON_DB_LIMIT = 100000;
+// 共通データベースはAIを呼ぶたびに毎回送るので、料金が膨らまないよう上限を小さくする（川船さん判断 2026-11-15）。
+// 5,000字なら、1記事（AI呼び出し十数回）で増える料金はわずか。これを超える分は入力できない。
+export const COMMON_DB_LIMIT = 5000;
 
 // 保存済みの共通データベースを、媒体ごとにまとめて読む
 export const loadCommonDbMap = (): Record<string, string> => {

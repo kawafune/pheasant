@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { GenerativeModel, GenerateContentResult, UsageMetadata } from "@google/generative-ai";
 import SEO_RULES from './seo-rules.md?raw';
+import { COMMON_DB_LIMIT } from './commonDb';
 import { designToPromptText, buildAdNotice, hasAdNotice } from './articleDesign';
 import { runCodeChecks, isFaqHeading } from './articleCheck';
 import { KURAMIKKE_KEY, buildKuramikkeFooter, hasKuramikkeDisclaimer } from './mediaProfiles';
@@ -166,7 +167,7 @@ const buildCommonPrefix = (mediaType: string, databaseText: string, commonDb: st
   // 共通データベース（媒体ごとに1つ）は、媒体が同じなら毎回同じなので、参考データより前に置く
   const common = commonDb.trim()
     ? `# 共通データベース（この媒体の記事全体で使う情報。記事の検索意図に合う情報だけを使い、合わなければ使わない）
-${commonDb.substring(0, 100000)}
+${commonDb.substring(0, COMMON_DB_LIMIT)}
 # ここまでが共通データベース
 `
     : '';
